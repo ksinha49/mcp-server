@@ -7,8 +7,8 @@
   "executionRoleArn": "arn:aws:iam::113284361828:role/alic-aio-mcp-ecs-task-execution-iam-role",
   "containerDefinitions": [
     {
-      "name": "mpc-sample-service-container",
-      "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mpc-sample-service:latest",
+      "name": "mcp-sample-service-container",
+      "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-sample-service:latest",
       "portMappings": [
         {
           "containerPort": 80,

@@ -7,7 +7,7 @@
   "executionRoleArn": "arn:aws:iam::113284361828:role/alic-aio-mcp-ecs-task-execution-iam-role",
   "containerDefinitions": [
     {
-      "name": "mpc-context7-service-container",
+      "name": "mcp-context7-service-container",
       "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-context7-service:latest",
       "portMappings": [
         {
