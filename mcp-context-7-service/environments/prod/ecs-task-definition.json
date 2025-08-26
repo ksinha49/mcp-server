@@ -8,7 +8,7 @@
   "containerDefinitions": [
     {
       "name": "mcp-context7-service-container",
-      "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-context7-service:latest",
+      "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-context-7-service:latest",
       "portMappings": [
         {
           "containerPort": 80,
