@@ -51,10 +51,10 @@ Resources:
       NetworkMode: awsvpc
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       ContainerDefinitions:
-        - Name: mcp-server
-          Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
-          PortMappings:
-            - ContainerPort: 3000
+          - Name: mcp-server
+            Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
+            PortMappings:
+              - ContainerPort: 3000
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -108,7 +108,7 @@ Resources:
         - Name: mcp-server
           Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
           PortMappings:
-            - ContainerPort: 3000
+            - ContainerPort: 8000
           LogConfiguration:
             LogDriver: awslogs
             Options:
