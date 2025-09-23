@@ -17,14 +17,14 @@ const DEFAULT_MINIMUM_TOKENS = 10000;
 // Parse CLI arguments using commander
 const program = new Command()
   .option("--transport <stdio|http>", "transport type", "stdio")
-  .option("--port <number>", "port for HTTP transport", "3000")
+  .option("--port <number>", "port for HTTP transport")
   .option("--api-key <key>", "API key for authentication")
   .allowUnknownOption() // let MCP Inspector / other wrappers pass through extra flags
   .parse(process.argv);
 
 const cliOptions = program.opts<{
   transport: string;
-  port: string;
+  port?: string;
   apiKey?: string;
 }>();
 
@@ -57,10 +57,18 @@ if (TRANSPORT_TYPE === "stdio" && passedPortFlag) {
 }
 
 // HTTP port configuration
-const CLI_PORT = (() => {
-  const parsed = parseInt(cliOptions.port, 10);
-  return isNaN(parsed) ? undefined : parsed;
-})();
+const parsePort = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+const cliPort = passedPortFlag ? parsePort(cliOptions.port) : undefined;
+const envPort = parsePort(process.env.PORT);
+const CONFIGURED_PORT = cliPort ?? envPort;
 
 // Store SSE transports by session ID
 const sseTransports: Record<string, SSEServerTransport> = {};
@@ -248,7 +256,7 @@ async function main() {
 
   if (transportType === "http") {
     // Get initial port from environment or use default
-    const initialPort = CLI_PORT ?? 3000;
+    const initialPort = CONFIGURED_PORT ?? 3000;
     // Keep track of which port we end up using
     let actualPort = initialPort;
     const httpServer = createServer(async (req, res) => {

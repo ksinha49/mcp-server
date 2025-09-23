@@ -51,10 +51,10 @@ Resources:
       NetworkMode: awsvpc
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       ContainerDefinitions:
-        - Name: mcp-server
-          Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
-          PortMappings:
-            - ContainerPort: 8000
+          - Name: mcp-server
+            Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
+            PortMappings:
+              - ContainerPort: 3000
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -74,8 +74,8 @@ Resources:
           Subnets: [subnet-abc123, subnet-def456]
           SecurityGroups: [sg-123abc]
       LoadBalancers:
-        - ContainerName: mcp-server-<toolname>
-          ContainerPort: 8000
+        - ContainerName: mcp-server
+          ContainerPort: 3000
           TargetGroupArn: !Ref MCPTargetGroup
 ```
 Using AWS Fargate on Amazon ECS with an Application Load Balancer and IAM roles:
@@ -83,7 +83,7 @@ Using AWS Fargate on Amazon ECS with an Application Load Balancer and IAM roles:
 - **ECS Cluster:** Launch type FARGATE
 - **Task Definition:** CPU 512, Memory 1GB
 - **Service:** Desired count 2, attach to ALB
-- **Load Balancer:** Route HTTP/HTTPS to container port 8000
+- **Load Balancer:** Route HTTP/HTTPS to container port 3000 by default. If you need the target group to use a different port (e.g., 8000), set the `PORT` environment variable in the task definition and update the target group to match.
 - **IAM Roles:**
   - Task execution role (ECR pull, CloudWatch logs)
   - Task role (access to RDS, S3, Secrets Manager)
@@ -105,7 +105,7 @@ Resources:
       NetworkMode: awsvpc
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       ContainerDefinitions:
-        - Name: mcp-server-<toolname>
+        - Name: mcp-server
           Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
           PortMappings:
             - ContainerPort: 8000
@@ -115,6 +115,12 @@ Resources:
               awslogs-group: /ecs/mcp-server
               awslogs-region: us-east-1
               awslogs-stream-prefix: ecs
+
+          # Optional: override the port the container listens on if your target group
+          # uses a different port, such as 8000
+          Environment:
+            - Name: PORT
+              Value: "8000"
 
   MCPService:
     Type: AWS::ECS::Service
@@ -128,7 +134,7 @@ Resources:
           Subnets: [subnet-abc123, subnet-def456]
           SecurityGroups: [sg-123abc]
       LoadBalancers:
-        - ContainerName: mcp-server-<toolname>
+        - ContainerName: mcp-server
           ContainerPort: 8000
           TargetGroupArn: !Ref MCPTargetGroup
 ```

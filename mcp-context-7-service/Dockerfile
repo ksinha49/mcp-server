@@ -25,8 +25,11 @@ COPY package.json bun.lock ./
 # Install only production dependencies
 RUN bun install --production --no-scripts
 
+# Default port (can be overridden at runtime)
+ENV PORT=3000
+
 # Expose HTTP port
 EXPOSE 3000
 
 # Default command
-CMD ["bun", "dist/index.js", "--transport", "http", "--port", "3000"]
+CMD ["bun", "dist/index.js", "--transport", "http"]
