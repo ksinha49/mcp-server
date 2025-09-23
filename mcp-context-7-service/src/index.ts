@@ -352,6 +352,9 @@ async function main() {
         } else if (url === "/ping") {
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("pong");
+        } else if (url === "/health" && req.method === "GET") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok" }));
         } else {
           res.writeHead(404);
           res.end("Not found");
