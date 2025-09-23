@@ -11,8 +11,8 @@
       "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-context7-service:latest",
       "portMappings": [
         {
-          "containerPort": 80,
-          "hostPort": 80,
+          "containerPort": 3000,
+          "hostPort": 3000,
           "protocol": "tcp"
         }
       ],

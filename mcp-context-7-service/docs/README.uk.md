@@ -758,10 +758,10 @@ bun run dist/index.js
 - `--transport <stdio|http|sse>` — Транспорт для використання (`stdio` за замовчуванням).
 - `--port <number>` — Порт для прослуховування при використанні транспорту `http` або `sse` (за замовчуванням `3000`).
 
-Приклад з http-транспортом і портом 8080:
+Приклад з http-транспортом і портом 3000:
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>

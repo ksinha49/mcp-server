@@ -842,10 +842,10 @@ bun run dist/index.js
 - `--transport <stdio|http|sse>` – 사용할 전송 방식 (`stdio`가 기본값).
 - `--port <number>` – `http` 또는 `sse` 전송 방식 사용 시 수신 대기할 포트 (기본값 `3000`).
 
-http 전송과 포트 8080을 사용하는 예시:
+http 전송과 포트 3000을 사용하는 예시:
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>

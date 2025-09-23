@@ -876,10 +876,10 @@ bun run dist/index.js
 - `--transport <stdio|http|sse>` – Transport để sử dụng (`stdio` theo mặc định).
 - `--port <number>` – Port để lắng nghe khi sử dụng transport `http` hoặc `sse` (mặc định `3000`).
 
-Ví dụ với http transport và port 8080:
+Ví dụ với http transport và port 3000:
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>

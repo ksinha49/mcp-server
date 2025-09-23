@@ -991,10 +991,10 @@ bun run dist/index.js
 - `--transport <stdio|http|sse>` – 要使用的传输（默认为 `stdio`）。
 - `--port <number>` – 使用 `http` 或 `sse` 传输时监听的端口（默认 `3000`）。
 
-使用 http 传输和端口 8080 的示例：
+使用 http 传输和端口 3000 的示例：
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>

@@ -1012,10 +1012,10 @@ bun run dist/index.js
 - `--transport <stdio|http>` – Transport to use (`stdio` by default). Note that HTTP transport automatically provides both HTTP and SSE endpoints.
 - `--port <number>` – Port to listen on when using `http` transport (default `3000`).
 
-Example with http transport and port 8080:
+Example with http transport and port 3000:
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 Another example with stdio transport:
