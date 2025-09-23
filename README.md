@@ -54,7 +54,7 @@ Resources:
         - Name: mcp-server
           Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
           PortMappings:
-            - ContainerPort: 8000
+            - ContainerPort: 3000
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -74,7 +74,7 @@ Resources:
           Subnets: [subnet-abc123, subnet-def456]
           SecurityGroups: [sg-123abc]
       LoadBalancers:
-        - ContainerName: mcp-server-<toolname>
+        - ContainerName: mcp-server
           ContainerPort: 3000
           TargetGroupArn: !Ref MCPTargetGroup
 ```
@@ -105,7 +105,7 @@ Resources:
       NetworkMode: awsvpc
       ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
       ContainerDefinitions:
-        - Name: mcp-server-<toolname>
+        - Name: mcp-server
           Image: <ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/mcp-server-<toolname>:latest
           PortMappings:
             - ContainerPort: 3000
@@ -134,7 +134,7 @@ Resources:
           Subnets: [subnet-abc123, subnet-def456]
           SecurityGroups: [sg-123abc]
       LoadBalancers:
-        - ContainerName: mcp-server-<toolname>
+        - ContainerName: mcp-server
           ContainerPort: 8000
           TargetGroupArn: !Ref MCPTargetGroup
 ```
