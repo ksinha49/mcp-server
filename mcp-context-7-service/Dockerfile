@@ -26,7 +26,7 @@ COPY package.json bun.lock ./
 RUN bun install --production --no-scripts
 
 # Expose HTTP port
-EXPOSE 8080
+EXPOSE 3000
 
 # Default command
-CMD ["bun", "dist/index.js", "--transport", "http", "--port", "8080"]
+CMD ["bun", "dist/index.js", "--transport", "http", "--port", "3000"]

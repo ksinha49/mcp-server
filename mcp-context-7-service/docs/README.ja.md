@@ -584,10 +584,10 @@ bun run dist/index.js
 - `--transport <stdio|http|sse>` – 使用するトランスポート（デフォルトは `stdio`）。
 - `--port <number>` – `http` または `sse` トランスポート使用時にリッスンするポート（デフォルト `3000`）。
 
-http トランスポートとポート 8080 の例：
+http トランスポートとポート 3000 の例：
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>

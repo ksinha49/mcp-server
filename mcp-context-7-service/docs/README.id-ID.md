@@ -769,10 +769,10 @@ bun run dist/index.js
 
 - `--transport <stdio|http|sse>` – Transportasi yang digunakan (`stdio` secara default).
 - `--port <number>` – Port yang didengarkan saat menggunakan transport `http` atau `sse` (default `3000`).
-  Contoh dengan transport http dan port 8080:
+  Contoh dengan transport http dan port 3000:
 
 ```bash
-bun run dist/index.js --transport http --port 8080
+bun run dist/index.js --transport http --port 3000
 ```
 
 <details>
