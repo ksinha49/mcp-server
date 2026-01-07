@@ -6,14 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Enterprise MCP (Model Context Protocol) Servers repository implementing MCP-compliant servers for AI clients. Follows MCP 2025-06-18 specification with OAuth 2.1 authentication.
 
-**Services:**
-- **Context7 MCP** (TypeScript) - Documentation server for up-to-date library docs
-- **OAuth Gateway** (Python) - Centralized OAuth service for MCP servers
-- **Outlook MCP** (Python) - Microsoft Outlook email, calendar, contacts
-- **SharePoint MCP** (Python) - Microsoft SharePoint documents and sites
-- **Teams MCP** (Python) - Microsoft Teams chat and channels
-- **Azure DevOps MCP** (Python) - Azure DevOps projects and repos
-- **Snowflake MCP** (Python) - Snowflake data warehouse queries
+**Services (Port Allocation):**
+
+| Service | Port | Language | Description |
+|---------|------|----------|-------------|
+| OAuth Gateway | 8000 | Python | Centralized OAuth service |
+| Outlook MCP | 8001 | Python | Email, calendar, contacts |
+| SharePoint MCP | 8002 | Python | Documents and sites |
+| Teams MCP | 8003 | Python | Chat, channels, meetings |
+| Azure DevOps MCP | 8004 | Python | Projects, repos, pipelines |
+| Snowflake MCP | 8005 | Python | Data warehouse queries |
+| Context7 MCP | 8006 | TypeScript | Library documentation |
+| Combined MCP | 8000 | Python | All providers (configurable) |
 
 ## Repository Structure
 
@@ -74,14 +78,18 @@ python -m app.main --transport http --port 8001
 docker build -t mcp-outlook-service:latest .
 ```
 
-### Context7 Service (mcp-context-7-service/)
+### Context7 Service (mcp-context-7-service/) - Port 8006
 
 ```bash
 cd mcp-context-7-service
 bun install && bun run build
-node dist/index.js --transport http  # HTTP mode
-node dist/index.js --transport stdio # STDIO mode
-bun run lint && bun run format       # Lint & format
+node dist/index.js --transport http --port 8006  # HTTP mode
+node dist/index.js --transport stdio              # STDIO mode
+bun run lint && bun run format                    # Lint & format
+
+# Docker
+docker build -t mcp-context7-service:latest .
+docker run -p 8006:8006 mcp-context7-service:latest
 ```
 
 ## Architecture

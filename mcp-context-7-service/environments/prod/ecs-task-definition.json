@@ -1,22 +1,53 @@
 {
-  "family": "mcp-server-task",
+  "family": "mcp-context7-task",
   "networkMode": "awsvpc",
   "cpu": "256",
   "memory": "512",
   "requiresCompatibilities": ["FARGATE"],
-  "executionRoleArn": "arn:aws:iam::113284361828:role/alic-aio-mcp-ecs-task-execution-iam-role",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-context7-task-role",
   "containerDefinitions": [
     {
-      "name": "mcp-context7-service-container",
-      "image": "113284361828.dkr.ecr.us-east-2.amazonaws.com/aicoe/mcp-context7-service:latest",
+      "name": "mcp-context7-service",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/mcp-context7-service:latest",
+      "essential": true,
       "portMappings": [
         {
-          "containerPort": 3000,
-          "hostPort": 3000,
+          "containerPort": 8006,
           "protocol": "tcp"
         }
       ],
-      "essential": true
+      "environment": [
+        {
+          "name": "PORT",
+          "value": "8006"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "CONTEXT7_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/context7/api_key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mcp-context7-service",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8006/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
     }
   ]
 }

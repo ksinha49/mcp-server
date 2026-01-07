@@ -255,8 +255,8 @@ async function main() {
   const transportType = TRANSPORT_TYPE;
 
   if (transportType === "http") {
-    // Get initial port from environment or use default
-    const initialPort = CONFIGURED_PORT ?? 3000;
+    // Get initial port from environment or use default (8006 for Context7)
+    const initialPort = CONFIGURED_PORT ?? 8006;
     // Keep track of which port we end up using
     let actualPort = initialPort;
     const httpServer = createServer(async (req, res) => {

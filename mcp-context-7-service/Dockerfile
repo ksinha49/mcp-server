@@ -16,6 +16,9 @@ RUN bun install && bun run build
 FROM oven/bun:1
 WORKDIR /app
 
+# Install curl for health check
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 # Copy built artifacts
 COPY --from=builder /app/dist ./dist
 
@@ -25,11 +28,19 @@ COPY package.json bun.lock ./
 # Install only production dependencies
 RUN bun install --production --no-scripts
 
-# Default port (can be overridden at runtime)
-ENV PORT=3000
+# Create non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Default port (can be overridden at runtime) - Context7 uses 8006
+ENV PORT=8006
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8006/health || exit 1
 
 # Expose HTTP port
-EXPOSE 3000
+EXPOSE 8006
 
 # Default command
-CMD ["bun", "dist/index.js", "--transport", "http"]
+CMD ["bun", "dist/index.js", "--transport", "http", "--port", "8006"]
