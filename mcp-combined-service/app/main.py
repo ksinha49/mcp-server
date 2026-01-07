@@ -36,6 +36,7 @@ from mcp.types import Tool, TextContent
 
 from app.config import get_settings
 from app.providers import registry
+from app.sandbox import SandboxMode, SandboxManager, ExecutionContext
 from app.providers.outlook import OutlookProvider, OUTLOOK_TOOLS
 from app.providers.sharepoint import SharePointProvider, SHAREPOINT_TOOLS
 from app.providers.teams import TeamsProvider, TEAMS_TOOLS
@@ -288,6 +289,122 @@ async def run_http(host: str, port: int):
 
         else:
             return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+
+    # Code Execution Endpoints
+    sandbox_manager: Optional[SandboxManager] = None
+
+    if settings.code_execution_enabled:
+        sandbox_mode = SandboxMode(settings.sandbox_mode)
+        sandbox_manager = SandboxManager.create(
+            sandbox_mode,
+            deno_server_port=settings.deno_server_port,
+            python_backend_port=port,
+        )
+
+        @app.on_event("startup")
+        async def start_sandbox():
+            if sandbox_manager:
+                await sandbox_manager.start()
+                log.info("Sandbox manager started (mode: %s)", settings.sandbox_mode)
+
+        @app.on_event("shutdown")
+        async def stop_sandbox():
+            if sandbox_manager:
+                await sandbox_manager.stop()
+                log.info("Sandbox manager stopped")
+
+        @app.get("/mcp/code/status")
+        async def code_status():
+            """Get code execution sandbox status."""
+            if not sandbox_manager:
+                return {"enabled": False}
+            health = await sandbox_manager.health_check()
+            return {"enabled": True, **health}
+
+        @app.get("/mcp/code/tools")
+        async def code_tools():
+            """List tools available for code execution with TypeScript types."""
+            tools = []
+            for provider_name in enabled:
+                provider = registry.get_provider(provider_name)
+                if provider:
+                    for tool in registry._tools.get(provider_name, []):
+                        tools.append({
+                            "provider": provider_name,
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": tool.inputSchema,
+                        })
+            return {"tools": tools, "total": len(tools)}
+
+        @app.post("/mcp/code/validate")
+        async def code_validate(request: Request):
+            """Validate TypeScript code without executing."""
+            if not sandbox_manager:
+                raise HTTPException(503, "Code execution not enabled")
+
+            try:
+                body = await request.json()
+            except Exception:
+                raise HTTPException(400, "Invalid JSON")
+
+            code = body.get("code")
+            if not code:
+                raise HTTPException(400, "Missing required field: code")
+
+            result = await sandbox_manager.validate(code)
+            return {
+                "valid": result.valid,
+                "errors": result.errors,
+                "warnings": result.warnings,
+            }
+
+        @app.post("/mcp/code/execute")
+        async def code_execute(request: Request):
+            """Execute TypeScript code in sandboxed environment."""
+            if not sandbox_manager:
+                raise HTTPException(503, "Code execution not enabled")
+
+            auth_header = request.headers.get("Authorization", "")
+            user_token = None
+            if auth_header.startswith("Bearer "):
+                user_token = auth_header[7:]
+
+            try:
+                body = await request.json()
+            except Exception:
+                raise HTTPException(400, "Invalid JSON")
+
+            code = body.get("code")
+            if not code:
+                raise HTTPException(400, "Missing required field: code")
+
+            context = ExecutionContext(
+                code=code,
+                timeout_ms=body.get("timeout_ms", 60000),
+                variables=body.get("variables", {}),
+                auth_token=user_token,
+            )
+
+            result = await sandbox_manager.execute(context)
+            return {
+                "success": result.success,
+                "result": result.result,
+                "error": result.error,
+                "logs": result.logs,
+                "execution_time_ms": result.execution_time_ms,
+                "tools_called": [
+                    {
+                        "provider": tc.provider,
+                        "tool": tc.tool,
+                        "arguments": tc.arguments,
+                        "duration_ms": tc.duration_ms,
+                        "success": tc.success,
+                        "error": tc.error,
+                    }
+                    for tc in result.tools_called
+                ],
+            }
 
     log.info("Starting Combined MCP Server at http://%s:%d", host, port)
     log.info("Enabled providers: %s", ", ".join(enabled))

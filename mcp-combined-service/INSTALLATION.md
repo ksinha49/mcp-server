@@ -6,6 +6,11 @@
 - Access to services you want to enable
 - OAuth Gateway configured (for Microsoft providers)
 
+### For Code Execution (Optional)
+
+- **Deno sandbox**: Deno >= 1.40
+- **Docker sandbox**: Docker >= 24.0
+
 ## Local Development Setup
 
 ### 1. Clone and Navigate
@@ -30,11 +35,24 @@ pip install -r requirements.txt
 pip install -e ../mcp-oauth-lib
 ```
 
-### 4. Configure Environment Variables
+### 4. Install Deno (For Code Execution)
+
+```bash
+# macOS / Linux
+curl -fsSL https://deno.land/install.sh | sh
+
+# Windows (PowerShell)
+irm https://deno.land/install.ps1 | iex
+
+# Verify installation
+deno --version
+```
+
+### 5. Configure Environment Variables
 
 Create `.env` file based on which providers you want to enable:
 
-#### Full Configuration (All Providers)
+#### Full Configuration (All Providers + Code Execution)
 
 ```bash
 # Enabled Providers
@@ -44,6 +62,14 @@ ENABLED_PROVIDERS=outlook,sharepoint,teams,azuredevops,snowflake
 HOST=0.0.0.0
 PORT=8000
 LOG_LEVEL=DEBUG
+
+# Code Execution
+CODE_EXECUTION_ENABLED=true
+SANDBOX_MODE=deno
+DENO_SERVER_PORT=8001
+MAX_EXECUTION_TIME_MS=60000
+MAX_MEMORY_MB=128
+RATE_LIMIT_PER_MINUTE=30
 
 # Microsoft OAuth (for Outlook, SharePoint, Teams)
 OAUTH_GATEWAY_URL=http://localhost:8000
@@ -64,7 +90,7 @@ SNOWFLAKE_WAREHOUSE=COMPUTE_WH
 SNOWFLAKE_DATABASE=your-database
 ```
 
-#### Microsoft 365 Only
+#### Microsoft 365 Only (Standard Mode)
 
 ```bash
 ENABLED_PROVIDERS=outlook,sharepoint,teams
@@ -76,10 +102,14 @@ MICROSOFT_TENANT_ID=your-tenant-id
 TOKEN_ENCRYPTION_KEY=your-base64-encoded-32-byte-key
 ```
 
-#### Data Focus (Snowflake + SharePoint)
+#### Data Focus with Code Execution
 
 ```bash
 ENABLED_PROVIDERS=sharepoint,snowflake
+
+# Enable code execution for data processing
+CODE_EXECUTION_ENABLED=true
+SANDBOX_MODE=deno
 
 # Microsoft (for SharePoint)
 OAUTH_GATEWAY_URL=http://localhost:8000
@@ -94,7 +124,7 @@ SNOWFLAKE_USER=your-username
 SNOWFLAKE_PASSWORD=your-password
 ```
 
-### 5. Start the Server
+### 6. Start the Server
 
 #### STDIO Mode (for Claude Desktop)
 
@@ -102,26 +132,92 @@ SNOWFLAKE_PASSWORD=your-password
 python -m app.main --transport stdio
 ```
 
-#### HTTP Mode (for production)
+#### HTTP Mode (Standard)
 
 ```bash
 python -m app.main --transport http --port 8000
 ```
 
-### 6. Verify Installation
+#### HTTP Mode with Code Execution
 
 ```bash
-# HTTP mode only
-curl http://localhost:8000/health
+CODE_EXECUTION_ENABLED=true SANDBOX_MODE=deno python -m app.main --transport http --port 8000
 ```
 
-Expected response showing enabled providers:
-```json
+### 7. Verify Installation
+
+```bash
+# Health check (HTTP mode only)
+curl http://localhost:8000/health
+
+# Expected response showing enabled providers
 {
   "status": "healthy",
   "service": "mcp-combined-service",
   "enabled_providers": ["outlook", "sharepoint", "teams", "azuredevops", "snowflake"]
 }
+
+# If code execution is enabled
+curl http://localhost:8000/mcp/code/status
+
+# Expected response
+{
+  "enabled": true,
+  "status": "healthy",
+  "mode": "deno",
+  "providers": ["outlook", "sharepoint", "teams", "azuredevops", "snowflake"]
+}
+```
+
+## Code Execution Setup
+
+### Deno Sandbox (Recommended for Development)
+
+1. Install Deno (see step 4 above)
+2. Set environment variables:
+
+```bash
+CODE_EXECUTION_ENABLED=true
+SANDBOX_MODE=deno
+DENO_SERVER_PORT=8001
+```
+
+3. Start the server - Deno executor starts automatically
+
+### Docker Sandbox (Recommended for Production)
+
+1. Build the executor image:
+
+```bash
+docker build -t mcp-code-executor:latest -f docker/executor/Dockerfile .
+```
+
+2. Set environment variables:
+
+```bash
+CODE_EXECUTION_ENABLED=true
+SANDBOX_MODE=docker
+DOCKER_POOL_SIZE=5
+DOCKER_EXECUTOR_IMAGE=mcp-code-executor:latest
+```
+
+3. Start the server - Docker containers are pre-warmed automatically
+
+### Testing Code Execution
+
+```bash
+# Validate code syntax
+curl -X POST http://localhost:8000/mcp/code/validate \
+  -H "Content-Type: application/json" \
+  -d '{"code": "const x = await tools.outlook.search_emails({});"}'
+
+# Execute code
+curl -X POST http://localhost:8000/mcp/code/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "const result = await tools.snowflake.list_databases({});\nreturn result;",
+    "timeout_ms": 10000
+  }'
 ```
 
 ## Claude Desktop Integration
@@ -166,7 +262,7 @@ Close and reopen Claude Desktop to load the new configuration.
 docker build -t mcp-combined-service:latest .
 ```
 
-### Run Container
+### Run Container (Standard Mode)
 
 ```bash
 docker run -d \
@@ -181,7 +277,46 @@ docker run -d \
   mcp-combined-service:latest
 ```
 
-### Docker Compose
+### Run Container (With Deno Code Execution)
+
+```bash
+docker run -d \
+  --name mcp-combined-service \
+  -p 8000:8000 \
+  -p 8001:8001 \
+  -e ENABLED_PROVIDERS=outlook,sharepoint,snowflake \
+  -e CODE_EXECUTION_ENABLED=true \
+  -e SANDBOX_MODE=deno \
+  -e OAUTH_GATEWAY_URL=https://oauth-gateway.example.com \
+  -e MICROSOFT_CLIENT_ID=your-client-id \
+  -e MICROSOFT_CLIENT_SECRET=your-client-secret \
+  -e MICROSOFT_TENANT_ID=your-tenant-id \
+  -e TOKEN_ENCRYPTION_KEY=your-key \
+  mcp-combined-service:latest
+```
+
+### Run Container (With Docker Sandbox)
+
+```bash
+docker run -d \
+  --name mcp-combined-service \
+  -p 8000:8000 \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -e ENABLED_PROVIDERS=outlook,sharepoint,snowflake \
+  -e CODE_EXECUTION_ENABLED=true \
+  -e SANDBOX_MODE=docker \
+  -e DOCKER_POOL_SIZE=5 \
+  mcp-combined-service:latest
+```
+
+### Docker Compose (Full Stack with Sandbox Pool)
+
+```bash
+cd docker
+docker-compose -f docker-compose.sandbox.yml up -d
+```
+
+### Docker Compose Configuration
 
 ```yaml
 version: '3.8'
@@ -190,8 +325,11 @@ services:
     build: ./mcp-combined-service
     ports:
       - "8000:8000"
+      - "8001:8001"
     environment:
       - ENABLED_PROVIDERS=outlook,sharepoint,teams,azuredevops,snowflake
+      - CODE_EXECUTION_ENABLED=true
+      - SANDBOX_MODE=deno
       - OAUTH_GATEWAY_URL=http://oauth-gateway:8000
       - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID}
       - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET}
@@ -224,6 +362,8 @@ See `environments/prod/ecs-task-definition.json` for the complete ECS task defin
    - `/mcp/prod/combined/enabled_providers`
    - `/mcp/prod/combined/microsoft_client_id`
    - `/mcp/prod/combined/microsoft_tenant_id`
+   - `/mcp/prod/combined/code_execution_enabled`
+   - `/mcp/prod/combined/sandbox_mode`
    - `/mcp/prod/combined/azuredevops_organization_url`
    - `/mcp/prod/combined/snowflake_account`
    - `/mcp/prod/combined/snowflake_user`
@@ -269,6 +409,41 @@ If a provider's tools don't appear:
 curl http://localhost:8000/health
 ```
 
+### Code Execution Not Working
+
+1. Verify `CODE_EXECUTION_ENABLED=true`
+2. Check sandbox mode is set correctly
+3. For Deno: ensure Deno is installed and in PATH
+4. For Docker: ensure Docker daemon is running
+
+```bash
+# Check sandbox status
+curl http://localhost:8000/mcp/code/status
+
+# For Deno mode, verify Deno is available
+deno --version
+
+# For Docker mode, verify Docker is running
+docker ps
+```
+
+### Code Validation Failing
+
+Static analysis blocks dangerous patterns:
+
+```bash
+# These patterns are blocked:
+# - eval(), Function(), new Function()
+# - import() (dynamic imports)
+# - Deno.*, globalThis, __proto__
+# - require(), process.*
+
+# Test validation
+curl -X POST http://localhost:8000/mcp/code/validate \
+  -H "Content-Type: application/json" \
+  -d '{"code": "const x = 1 + 1; return x;"}'
+```
+
 ### Mixed Authentication Issues
 
 Different providers may need different authentication:
@@ -287,10 +462,15 @@ Running all providers increases:
 
 For production, consider enabling only the providers you need.
 
-## Health Check
+With code execution enabled:
+- Deno sandbox: ~50-100MB additional memory
+- Docker sandbox: ~128MB per container * pool size
+
+## Health Checks
+
+### Standard Health Check
 
 ```bash
-# HTTP mode
 curl http://localhost:8000/health
 
 # Expected response
@@ -298,5 +478,31 @@ curl http://localhost:8000/health
   "status": "healthy",
   "service": "mcp-combined-service",
   "enabled_providers": ["outlook", "sharepoint", "teams"]
+}
+```
+
+### Code Execution Health Check
+
+```bash
+curl http://localhost:8000/mcp/code/status
+
+# Expected response (Deno mode)
+{
+  "enabled": true,
+  "status": "healthy",
+  "mode": "deno",
+  "port": 8001,
+  "providers": ["outlook", "sharepoint", "snowflake"]
+}
+
+# Expected response (Docker mode)
+{
+  "enabled": true,
+  "status": "healthy",
+  "mode": "docker",
+  "pool_size": 5,
+  "active_containers": 5,
+  "available": 4,
+  "in_use": 1
 }
 ```

@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     token_encryption_key: Optional[str] = Field(default=None)
     resource_uri: Optional[str] = Field(default=None)
 
+    # Code Execution Settings
+    code_execution_enabled: bool = Field(default=False)
+    sandbox_mode: str = Field(default="deno")  # "deno" or "docker"
+    deno_server_port: int = Field(default=8001)
+    docker_pool_size: int = Field(default=5)
+    docker_executor_image: str = Field(default="mcp-code-executor:latest")
+    max_execution_time_ms: int = Field(default=60000)
+    max_memory_mb: int = Field(default=128)
+    rate_limit_per_minute: int = Field(default=30)
+
     class Config:
         env_file = ".env"
         case_sensitive = False

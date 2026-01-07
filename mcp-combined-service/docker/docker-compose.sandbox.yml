@@ -1,0 +1,107 @@
+version: '3.8'
+
+# MCP Code Execution Sandbox - Local Development
+#
+# Usage:
+#   docker-compose -f docker/docker-compose.sandbox.yml up -d
+#
+# This creates a pool of pre-warmed executor containers for code execution.
+
+services:
+  # Main MCP Combined Service
+  mcp-combined:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - CODE_EXECUTION_ENABLED=true
+      - SANDBOX_MODE=docker
+      - DOCKER_POOL_SIZE=3
+      - DOCKER_EXECUTOR_IMAGE=mcp-code-executor:latest
+      - LOG_LEVEL=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - executor-1
+      - executor-2
+      - executor-3
+    networks:
+      - mcp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Pre-warmed executor containers
+  executor-1:
+    build:
+      context: ..
+      dockerfile: docker/executor/Dockerfile
+    ports:
+      - "9001:3000"
+    environment:
+      - PYTHON_BACKEND_URL=http://mcp-combined:8000
+      - NODE_ENV=production
+    networks:
+      - mcp-network
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  executor-2:
+    build:
+      context: ..
+      dockerfile: docker/executor/Dockerfile
+    ports:
+      - "9002:3000"
+    environment:
+      - PYTHON_BACKEND_URL=http://mcp-combined:8000
+      - NODE_ENV=production
+    networks:
+      - mcp-network
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  executor-3:
+    build:
+      context: ..
+      dockerfile: docker/executor/Dockerfile
+    ports:
+      - "9003:3000"
+    environment:
+      - PYTHON_BACKEND_URL=http://mcp-combined:8000
+      - NODE_ENV=production
+    networks:
+      - mcp-network
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  mcp-network:
+    driver: bridge
