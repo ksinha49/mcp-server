@@ -1,0 +1,77 @@
+{
+  "family": "mcp-snowflake-task",
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "requiresCompatibilities": ["FARGATE"],
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-snowflake-task-role",
+  "containerDefinitions": [
+    {
+      "name": "mcp-snowflake-service",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/mcp-snowflake-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8005,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "OAUTH_GATEWAY_URL",
+          "value": "https://mcp-oauth.internal.example.com"
+        },
+        {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "value": "{{resolve:ssm:/mcp/snowflake/account}}"
+        },
+        {
+          "name": "SNOWFLAKE_WAREHOUSE",
+          "value": "{{resolve:ssm:/mcp/snowflake/warehouse}}"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "SNOWFLAKE_USER",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/user"
+        },
+        {
+          "name": "SNOWFLAKE_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/password"
+        },
+        {
+          "name": "SNOWFLAKE_OAUTH_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/oauth_client_id"
+        },
+        {
+          "name": "SNOWFLAKE_OAUTH_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/oauth_client_secret"
+        },
+        {
+          "name": "TOKEN_ENCRYPTION_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mcp-snowflake-service",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}

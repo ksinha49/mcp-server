@@ -1,0 +1,93 @@
+{
+  "family": "mcp-combined-task",
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "requiresCompatibilities": ["FARGATE"],
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-combined-task-role",
+  "containerDefinitions": [
+    {
+      "name": "mcp-combined-service",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/mcp-combined-service:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "ENABLED_PROVIDERS",
+          "value": "outlook,sharepoint,teams,azuredevops,snowflake"
+        },
+        {
+          "name": "OAUTH_GATEWAY_URL",
+          "value": "https://mcp-oauth.internal.example.com"
+        },
+        {
+          "name": "MICROSOFT_TENANT_ID",
+          "value": "{{resolve:ssm:/mcp/microsoft/tenant_id}}"
+        },
+        {
+          "name": "AZDO_ORGANIZATION_URL",
+          "value": "{{resolve:ssm:/mcp/azdo/organization_url}}"
+        },
+        {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "value": "{{resolve:ssm:/mcp/snowflake/account}}"
+        },
+        {
+          "name": "SNOWFLAKE_WAREHOUSE",
+          "value": "{{resolve:ssm:/mcp/snowflake/warehouse}}"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "MICROSOFT_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_id"
+        },
+        {
+          "name": "MICROSOFT_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_secret"
+        },
+        {
+          "name": "AZDO_PAT",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/azdo/pat"
+        },
+        {
+          "name": "SNOWFLAKE_USER",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/user"
+        },
+        {
+          "name": "SNOWFLAKE_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/password"
+        },
+        {
+          "name": "TOKEN_ENCRYPTION_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mcp-combined-service",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      }
+    }
+  ]
+}

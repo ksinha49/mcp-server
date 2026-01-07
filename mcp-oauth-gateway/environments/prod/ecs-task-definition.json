@@ -1,0 +1,77 @@
+{
+  "family": "mcp-oauth-gateway-task",
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "requiresCompatibilities": ["FARGATE"],
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-ecs-task-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/mcp-oauth-gateway-task-role",
+  "containerDefinitions": [
+    {
+      "name": "mcp-oauth-gateway",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/mcp-oauth-gateway:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "GATEWAY_URL",
+          "value": "https://mcp-oauth.example.com"
+        },
+        {
+          "name": "FRONTEND_URL",
+          "value": "https://app.example.com"
+        },
+        {
+          "name": "MICROSOFT_TENANT_ID",
+          "value": "{{resolve:ssm:/mcp/microsoft/tenant_id}}"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/redis_url"
+        },
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/database_url"
+        },
+        {
+          "name": "MICROSOFT_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_id"
+        },
+        {
+          "name": "MICROSOFT_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_secret"
+        },
+        {
+          "name": "TOKEN_ENCRYPTION_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/mcp-oauth-gateway",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}
