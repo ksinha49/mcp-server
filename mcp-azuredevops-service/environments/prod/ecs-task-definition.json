@@ -25,32 +25,32 @@
         {
           "name": "OAUTH_GATEWAY_URL",
           "value": "https://mcp-oauth.internal.example.com"
-        },
-        {
-          "name": "MICROSOFT_TENANT_ID",
-          "value": "{{resolve:ssm:/mcp/microsoft/tenant_id}}"
-        },
-        {
-          "name": "AZDO_ORGANIZATION_URL",
-          "value": "{{resolve:ssm:/mcp/azdo/organization_url}}"
         }
       ],
       "secrets": [
         {
+          "name": "MICROSOFT_TENANT_ID",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/microsoft/tenant_id"
+        },
+        {
+          "name": "AZDO_ORGANIZATION_URL",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/azuredevops/organization_url"
+        },
+        {
           "name": "MICROSOFT_CLIENT_ID",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_id"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/microsoft/client_id"
         },
         {
           "name": "MICROSOFT_CLIENT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_secret"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/microsoft/client_secret"
         },
         {
           "name": "AZDO_PAT",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/azdo/pat"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/azuredevops/pat"
         },
         {
           "name": "TOKEN_ENCRYPTION_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/common/token_encryption_key"
         }
       ],
       "logConfiguration": {

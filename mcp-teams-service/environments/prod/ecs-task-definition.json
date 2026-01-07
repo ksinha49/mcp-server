@@ -25,24 +25,24 @@
         {
           "name": "OAUTH_GATEWAY_URL",
           "value": "https://mcp-oauth.internal.example.com"
-        },
-        {
-          "name": "MICROSOFT_TENANT_ID",
-          "value": "{{resolve:ssm:/mcp/microsoft/tenant_id}}"
         }
       ],
       "secrets": [
         {
+          "name": "MICROSOFT_TENANT_ID",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/microsoft/tenant_id"
+        },
+        {
           "name": "MICROSOFT_CLIENT_ID",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_id"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/microsoft/client_id"
         },
         {
           "name": "MICROSOFT_CLIENT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_secret"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/microsoft/client_secret"
         },
         {
           "name": "TOKEN_ENCRYPTION_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/common/token_encryption_key"
         }
       ],
       "logConfiguration": {

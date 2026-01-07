@@ -25,36 +25,44 @@
         {
           "name": "OAUTH_GATEWAY_URL",
           "value": "https://mcp-oauth.internal.example.com"
-        },
-        {
-          "name": "SNOWFLAKE_ACCOUNT",
-          "value": "{{resolve:ssm:/mcp/snowflake/account}}"
-        },
-        {
-          "name": "SNOWFLAKE_WAREHOUSE",
-          "value": "{{resolve:ssm:/mcp/snowflake/warehouse}}"
         }
       ],
       "secrets": [
         {
+          "name": "SNOWFLAKE_ACCOUNT",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/snowflake/account"
+        },
+        {
+          "name": "SNOWFLAKE_WAREHOUSE",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/snowflake/warehouse"
+        },
+        {
+          "name": "SNOWFLAKE_DATABASE",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/snowflake/database"
+        },
+        {
+          "name": "SNOWFLAKE_SCHEMA",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/snowflake/schema"
+        },
+        {
           "name": "SNOWFLAKE_USER",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/user"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/snowflake/user"
         },
         {
           "name": "SNOWFLAKE_PASSWORD",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/password"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/snowflake/password"
         },
         {
           "name": "SNOWFLAKE_OAUTH_CLIENT_ID",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/oauth_client_id"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/snowflake/oauth_client_id"
         },
         {
           "name": "SNOWFLAKE_OAUTH_CLIENT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/snowflake/oauth_client_secret"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/snowflake/oauth_client_secret"
         },
         {
           "name": "TOKEN_ENCRYPTION_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/common/token_encryption_key"
         }
       ],
       "logConfiguration": {

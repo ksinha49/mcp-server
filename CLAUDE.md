@@ -168,6 +168,49 @@ MICROSOFT_TENANT_ID=...
 TOKEN_ENCRYPTION_KEY=...
 ```
 
+## AWS Deployment
+
+### Configuration Storage
+
+All services use ECS-native secrets injection (no start.sh scripts):
+
+- **Secrets Manager**: API keys, client secrets, database URLs, encryption keys
+- **SSM Parameter Store**: Tenant IDs, account names, warehouse names (non-sensitive)
+- **Environment Variables**: LOG_LEVEL, static URLs (hardcoded in task definition)
+
+**Pattern:** `secrets` block in ECS task definition with `valueFrom` pointing to ARN
+
+```json
+{
+  "secrets": [
+    {
+      "name": "MICROSOFT_CLIENT_SECRET",
+      "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/microsoft/client_secret"
+    },
+    {
+      "name": "MICROSOFT_TENANT_ID",
+      "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/microsoft/tenant_id"
+    }
+  ]
+}
+```
+
+**Naming Convention:** `/mcp/{environment}/{service}/{parameter}`
+
+### ECS Task Definitions
+
+Located at `{service}/environments/prod/ecs-task-definition.json`
+
+### Full AWS Infrastructure Guide
+
+See [`docs/aws-infrastructure.md`](docs/aws-infrastructure.md) for:
+- IAM role policies
+- Complete SSM parameters list
+- Secrets Manager secrets list
+- CloudWatch log groups
+- VPC endpoint recommendations
+- Deployment commands
+
 ## Tech Stack
 
 **Python Services:**
@@ -180,3 +223,10 @@ TOKEN_ENCRYPTION_KEY=...
 - Bun / Node.js
 - @modelcontextprotocol/sdk
 - Zod, Commander
+
+**AWS Infrastructure:**
+- ECS Fargate (compute)
+- SSM Parameter Store (config)
+- Secrets Manager (credentials)
+- CloudWatch Logs (logging)
+- ECR (container registry)

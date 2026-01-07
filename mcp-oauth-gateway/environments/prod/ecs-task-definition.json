@@ -29,32 +29,40 @@
         {
           "name": "FRONTEND_URL",
           "value": "https://app.example.com"
-        },
-        {
-          "name": "MICROSOFT_TENANT_ID",
-          "value": "{{resolve:ssm:/mcp/microsoft/tenant_id}}"
         }
       ],
       "secrets": [
         {
+          "name": "MICROSOFT_TENANT_ID",
+          "valueFrom": "arn:aws:ssm:us-east-2:ACCOUNT_ID:parameter/mcp/prod/oauth-gateway/microsoft_tenant_id"
+        },
+        {
           "name": "REDIS_URL",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/redis_url"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/redis_url"
         },
         {
           "name": "DATABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/database_url"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/database_url"
         },
         {
           "name": "MICROSOFT_CLIENT_ID",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_id"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/microsoft_client_id"
         },
         {
           "name": "MICROSOFT_CLIENT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/microsoft/client_secret"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/microsoft_client_secret"
+        },
+        {
+          "name": "SNOWFLAKE_OAUTH_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/snowflake_oauth_client_id"
+        },
+        {
+          "name": "SNOWFLAKE_OAUTH_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/oauth-gateway/snowflake_oauth_client_secret"
         },
         {
           "name": "TOKEN_ENCRYPTION_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/token_encryption_key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-2:ACCOUNT_ID:secret:mcp/prod/common/token_encryption_key"
         }
       ],
       "logConfiguration": {
