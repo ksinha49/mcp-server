@@ -1,0 +1,576 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: Parent/Master Stack for MCP Infrastructure Orchestration
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+  This is the master stack that orchestrates all nested stacks for the MCP infrastructure.
+  Deploy this stack to provision the complete MCP environment.
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  AlertEmail:
+    Type: String
+    Default: "aio-alerts@ameritas.com"
+    Description: Email address for alarm notifications
+
+  # Network Configuration
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for MCP infrastructure
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: VPC CIDR block for internal traffic
+
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnet IDs for ECS services
+
+  # ECR Configuration
+  ECRRepositoryUri:
+    Type: String
+    Description: ECR Repository base URI (e.g., 123456789012.dkr.ecr.us-east-2.amazonaws.com)
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Container image tag
+
+  # Cross-Account Configuration
+  LiteLLMAccountId:
+    Type: String
+    Default: ''
+    Description: AWS Account ID for LiteLLM consumer (for PrivateLink)
+
+  # Scaling Configuration
+  OAuthGatewayMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of OAuth Gateway tasks
+
+  OAuthGatewayMaxCapacity:
+    Type: Number
+    Default: 10
+    Description: Maximum number of OAuth Gateway tasks
+
+  CombinedServiceMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of Combined Service tasks
+
+  CombinedServiceMaxCapacity:
+    Type: Number
+    Default: 10
+    Description: Maximum number of Combined Service tasks
+
+  MCPServiceMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of individual MCP service tasks
+
+  MCPServiceMaxCapacity:
+    Type: Number
+    Default: 6
+    Description: Maximum number of individual MCP service tasks
+
+  CPUTargetValue:
+    Type: Number
+    Default: 70
+    Description: Target CPU utilization percentage for auto-scaling
+
+  MemoryTargetValue:
+    Type: Number
+    Default: 80
+    Description: Target Memory utilization percentage for auto-scaling
+
+  # Template Bucket Configuration
+  TemplateBucketName:
+    Type: String
+    Description: S3 bucket containing nested stack templates
+
+  TemplateBucketPrefix:
+    Type: String
+    Default: cloudformation/templates
+    Description: S3 prefix for template files
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - AWSAccountName
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcId
+          - VpcCidr
+          - PrivateSubnetIds
+      - Label:
+          default: "ECR Configuration"
+        Parameters:
+          - ECRRepositoryUri
+          - ImageTag
+      - Label:
+          default: "Scaling Configuration"
+        Parameters:
+          - OAuthGatewayMinCapacity
+          - OAuthGatewayMaxCapacity
+          - CombinedServiceMinCapacity
+          - CombinedServiceMaxCapacity
+          - MCPServiceMinCapacity
+          - MCPServiceMaxCapacity
+          - CPUTargetValue
+          - MemoryTargetValue
+      - Label:
+          default: "Cross-Account Configuration"
+        Parameters:
+          - LiteLLMAccountId
+      - Label:
+          default: "Alerting Configuration"
+        Parameters:
+          - AlertEmail
+      - Label:
+          default: "Template Configuration"
+        Parameters:
+          - TemplateBucketName
+          - TemplateBucketPrefix
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ============================================
+  # Layer 1: IAM Roles & Policies
+  # ============================================
+  IAMStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/iam-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-iam-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: IAMStack
+
+  # ============================================
+  # Layer 2: Security Groups
+  # ============================================
+  SecurityGroupsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/security-groups-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        VpcId: !Ref VpcId
+        VpcCidr: !Ref VpcCidr
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-security-groups-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: SecurityGroupsStack
+
+  # ============================================
+  # Layer 3: ECS Cluster & Log Groups
+  # ============================================
+  ECSClusterStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/ecs-cluster-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-ecs-cluster-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: ECSClusterStack
+
+  # ============================================
+  # Layer 4: Service Discovery (Cloud Map)
+  # ============================================
+  CloudMapStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/cloud-map-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-cloud-map-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: CloudMapStack
+
+  # ============================================
+  # Layer 5: Network Load Balancer & Target Groups
+  # ============================================
+  NLBStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/nlb-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        VpcId: !Ref VpcId
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        LiteLLMAccountId: !Ref LiteLLMAccountId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-nlb-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: NLBStack
+
+  # ============================================
+  # Layer 6: ECS Services & Task Definitions
+  # ============================================
+  MCPServicesStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - IAMStack
+      - SecurityGroupsStack
+      - ECSClusterStack
+      - CloudMapStack
+      - NLBStack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/mcp-services-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        VpcId: !Ref VpcId
+        PrivateSubnetIds: !Join [',', !Ref PrivateSubnetIds]
+        ECSClusterArn: !GetAtt ECSClusterStack.Outputs.ClusterArn
+        ECSServicesSecurityGroupId: !GetAtt SecurityGroupsStack.Outputs.ECSServicesSecurityGroupId
+        ECSTaskExecutionRoleArn: !GetAtt IAMStack.Outputs.ECSTaskExecutionRoleArn
+        OAuthGatewayTaskRoleArn: !GetAtt IAMStack.Outputs.OAuthGatewayTaskRoleArn
+        CombinedServiceTaskRoleArn: !GetAtt IAMStack.Outputs.CombinedServiceTaskRoleArn
+        OutlookServiceTaskRoleArn: !GetAtt IAMStack.Outputs.OutlookServiceTaskRoleArn
+        SharePointServiceTaskRoleArn: !GetAtt IAMStack.Outputs.SharePointServiceTaskRoleArn
+        TeamsServiceTaskRoleArn: !GetAtt IAMStack.Outputs.TeamsServiceTaskRoleArn
+        AzureDevOpsServiceTaskRoleArn: !GetAtt IAMStack.Outputs.AzureDevOpsServiceTaskRoleArn
+        SnowflakeServiceTaskRoleArn: !GetAtt IAMStack.Outputs.SnowflakeServiceTaskRoleArn
+        Context7ServiceTaskRoleArn: !GetAtt IAMStack.Outputs.Context7ServiceTaskRoleArn
+        OAuthGatewayTargetGroupArn: !GetAtt NLBStack.Outputs.OAuthGatewayTargetGroupArn
+        CombinedTargetGroupArn: !GetAtt NLBStack.Outputs.CombinedTargetGroupArn
+        OutlookTargetGroupArn: !GetAtt NLBStack.Outputs.OutlookTargetGroupArn
+        SharePointTargetGroupArn: !GetAtt NLBStack.Outputs.SharePointTargetGroupArn
+        TeamsTargetGroupArn: !GetAtt NLBStack.Outputs.TeamsTargetGroupArn
+        AzureDevOpsTargetGroupArn: !GetAtt NLBStack.Outputs.AzureDevOpsTargetGroupArn
+        SnowflakeTargetGroupArn: !GetAtt NLBStack.Outputs.SnowflakeTargetGroupArn
+        Context7TargetGroupArn: !GetAtt NLBStack.Outputs.Context7TargetGroupArn
+        OAuthGatewayServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.OAuthGatewayServiceDiscoveryArn
+        CombinedServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.CombinedServiceDiscoveryArn
+        OutlookServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.OutlookServiceDiscoveryArn
+        SharePointServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.SharePointServiceDiscoveryArn
+        TeamsServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.TeamsServiceDiscoveryArn
+        AzureDevOpsServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.AzureDevOpsServiceDiscoveryArn
+        SnowflakeServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.SnowflakeServiceDiscoveryArn
+        Context7ServiceDiscoveryArn: !GetAtt CloudMapStack.Outputs.Context7ServiceDiscoveryArn
+        ECRRepositoryUri: !Ref ECRRepositoryUri
+        ImageTag: !Ref ImageTag
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-mcp-services-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: MCPServicesStack
+
+  # ============================================
+  # Layer 7: Auto-Scaling Policies
+  # ============================================
+  AutoScalingStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - MCPServicesStack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/autoscaling-stack.yaml
+      Parameters:
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        ECSClusterName: !GetAtt ECSClusterStack.Outputs.ClusterName
+        AutoScalingRoleArn: !GetAtt IAMStack.Outputs.AutoScalingRoleArn
+        OAuthGatewayMinCapacity: !Ref OAuthGatewayMinCapacity
+        OAuthGatewayMaxCapacity: !Ref OAuthGatewayMaxCapacity
+        CombinedServiceMinCapacity: !Ref CombinedServiceMinCapacity
+        CombinedServiceMaxCapacity: !Ref CombinedServiceMaxCapacity
+        MCPServiceMinCapacity: !Ref MCPServiceMinCapacity
+        MCPServiceMaxCapacity: !Ref MCPServiceMaxCapacity
+        CPUTargetValue: !Ref CPUTargetValue
+        MemoryTargetValue: !Ref MemoryTargetValue
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-autoscaling-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: AutoScalingStack
+
+  # ============================================
+  # Layer 8: Monitoring (Alarms, SNS, Dashboard)
+  # ============================================
+  MonitoringStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - MCPServicesStack
+    Properties:
+      TemplateURL: !Sub https://${TemplateBucketName}.s3.${AWS::Region}.amazonaws.com/${TemplateBucketPrefix}/monitoring-stack.yaml
+      Parameters:
+        AWSAccountName: !Ref AWSAccountName
+        CompanyName: !Ref CompanyName
+        AppName: !Ref AppName
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+        OwnerEmail: !Ref OwnerEmail
+        CostCenter: !Ref CostCenter
+        AlertEmail: !Ref AlertEmail
+        ECSClusterName: !GetAtt ECSClusterStack.Outputs.ClusterName
+        OAuthGatewayServiceName: !GetAtt MCPServicesStack.Outputs.OAuthGatewayServiceName
+        CombinedServiceName: !GetAtt MCPServicesStack.Outputs.CombinedServiceName
+        OutlookServiceName: !GetAtt MCPServicesStack.Outputs.OutlookServiceName
+        SharePointServiceName: !GetAtt MCPServicesStack.Outputs.SharePointServiceName
+        TeamsServiceName: !GetAtt MCPServicesStack.Outputs.TeamsServiceName
+        AzureDevOpsServiceName: !GetAtt MCPServicesStack.Outputs.AzureDevOpsServiceName
+        SnowflakeServiceName: !GetAtt MCPServicesStack.Outputs.SnowflakeServiceName
+        Context7ServiceName: !GetAtt MCPServicesStack.Outputs.Context7ServiceName
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-monitoring-stack
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: MonitoringStack
+
+Outputs:
+  # IAM Outputs
+  ECSTaskExecutionRoleArn:
+    Description: ECS Task Execution Role ARN
+    Value: !GetAtt IAMStack.Outputs.ECSTaskExecutionRoleArn
+
+  # Security Group Outputs
+  ECSServicesSecurityGroupId:
+    Description: ECS Services Security Group ID
+    Value: !GetAtt SecurityGroupsStack.Outputs.ECSServicesSecurityGroupId
+
+  # ECS Cluster Outputs
+  ClusterName:
+    Description: ECS Cluster Name
+    Value: !GetAtt ECSClusterStack.Outputs.ClusterName
+
+  ClusterArn:
+    Description: ECS Cluster ARN
+    Value: !GetAtt ECSClusterStack.Outputs.ClusterArn
+
+  # NLB Outputs
+  NLBDNSName:
+    Description: NLB DNS Name
+    Value: !GetAtt NLBStack.Outputs.NLBDNSName
+
+  EndpointServiceName:
+    Description: VPC Endpoint Service Name (for PrivateLink)
+    Value: !GetAtt NLBStack.Outputs.EndpointServiceName
+
+  # Service Outputs
+  OAuthGatewayServiceArn:
+    Description: OAuth Gateway Service ARN
+    Value: !GetAtt MCPServicesStack.Outputs.OAuthGatewayServiceArn
+
+  CombinedServiceArn:
+    Description: Combined Service ARN
+    Value: !GetAtt MCPServicesStack.Outputs.CombinedServiceArn
+
+  # Monitoring Outputs
+  CriticalAlertsTopicArn:
+    Description: Critical Alerts SNS Topic ARN
+    Value: !GetAtt MonitoringStack.Outputs.CriticalAlertsTopicArn
+
+  WarningAlertsTopicArn:
+    Description: Warning Alerts SNS Topic ARN
+    Value: !GetAtt MonitoringStack.Outputs.WarningAlertsTopicArn
+
+  DashboardName:
+    Description: CloudWatch Dashboard Name
+    Value: !GetAtt MonitoringStack.Outputs.DashboardName
+
+  # Stack Status
+  StackStatus:
+    Description: Parent stack deployment status
+    Value: !Sub "MCP ${Environment} infrastructure deployed successfully"

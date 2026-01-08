@@ -1,0 +1,739 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: CloudWatch Alarms, SNS Topics, and Monitoring for MCP Services
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  AlertEmail:
+    Type: String
+    Default: "aio-alerts@ameritas.com"
+    Description: Email address for alarm notifications
+
+  ECSClusterName:
+    Type: String
+    Description: ECS Cluster name for CloudWatch metrics
+
+  # Service ARNs for alarm dimensions
+  OAuthGatewayServiceName:
+    Type: String
+    Description: OAuth Gateway ECS Service name
+
+  CombinedServiceName:
+    Type: String
+    Description: Combined MCP Service name
+
+  OutlookServiceName:
+    Type: String
+    Description: Outlook Service name
+
+  SharePointServiceName:
+    Type: String
+    Description: SharePoint Service name
+
+  TeamsServiceName:
+    Type: String
+    Description: Teams Service name
+
+  AzureDevOpsServiceName:
+    Type: String
+    Description: Azure DevOps Service name
+
+  SnowflakeServiceName:
+    Type: String
+    Description: Snowflake Service name
+
+  Context7ServiceName:
+    Type: String
+    Description: Context7 Service name
+
+  # Alarm thresholds
+  CPUAlarmThreshold:
+    Type: Number
+    Default: 85
+    Description: CPU utilization threshold for alarm (percentage)
+
+  MemoryAlarmThreshold:
+    Type: Number
+    Default: 85
+    Description: Memory utilization threshold for alarm (percentage)
+
+  HealthyHostCountThreshold:
+    Type: Number
+    Default: 1
+    Description: Minimum healthy host count before alarm
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - AWSAccountName
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "ECS Configuration"
+        Parameters:
+          - ECSClusterName
+          - OAuthGatewayServiceName
+          - CombinedServiceName
+          - OutlookServiceName
+          - SharePointServiceName
+          - TeamsServiceName
+          - AzureDevOpsServiceName
+          - SnowflakeServiceName
+          - Context7ServiceName
+      - Label:
+          default: "Alarm Configuration"
+        Parameters:
+          - AlertEmail
+          - CPUAlarmThreshold
+          - MemoryAlarmThreshold
+          - HealthyHostCountThreshold
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ============================================
+  # SNS Topics for Notifications
+  # Pattern: ${AWSAccountName}-${AWS::StackName}-{purpose}-topic
+  # ============================================
+
+  # Critical alerts topic (PagerDuty/on-call integration)
+  CriticalAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWSAccountName}-${AWS::StackName}-critical-alerts-topic
+      DisplayName: !Sub "MCP ${Environment} Critical Alerts"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-critical-alerts-topic
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: CriticalAlertsTopic
+
+  # Warning alerts topic (email notifications)
+  WarningAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWSAccountName}-${AWS::StackName}-warning-alerts-topic
+      DisplayName: !Sub "MCP ${Environment} Warning Alerts"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-warning-alerts-topic
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+    Metadata:
+      SamResourceId: WarningAlertsTopic
+
+  # Email subscription for warning alerts
+  WarningAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref WarningAlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+    Metadata:
+      SamResourceId: WarningAlertsEmailSubscription
+
+  # Email subscription for critical alerts
+  CriticalAlertsEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref CriticalAlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+    Metadata:
+      SamResourceId: CriticalAlertsEmailSubscription
+
+  # ============================================
+  # CloudWatch Dashboard
+  # ============================================
+  MCPServicesDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub ${AppName}-${Environment}-services-dashboard
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "ECS Service CPU Utilization",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ECS", "CPUUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${OAuthGatewayServiceName}"],
+                  [".", ".", ".", ".", ".", "${CombinedServiceName}"],
+                  [".", ".", ".", ".", ".", "${OutlookServiceName}"],
+                  [".", ".", ".", ".", ".", "${Context7ServiceName}"]
+                ],
+                "period": 60,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "ECS Service Memory Utilization",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["AWS/ECS", "MemoryUtilization", "ClusterName", "${ECSClusterName}", "ServiceName", "${OAuthGatewayServiceName}"],
+                  [".", ".", ".", ".", ".", "${CombinedServiceName}"],
+                  [".", ".", ".", ".", ".", "${OutlookServiceName}"],
+                  [".", ".", ".", ".", ".", "${Context7ServiceName}"]
+                ],
+                "period": 60,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Running Task Count",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  ["ECS/ContainerInsights", "RunningTaskCount", "ClusterName", "${ECSClusterName}", "ServiceName", "${OAuthGatewayServiceName}"],
+                  [".", ".", ".", ".", ".", "${CombinedServiceName}"],
+                  [".", ".", ".", ".", ".", "${OutlookServiceName}"],
+                  [".", ".", ".", ".", ".", "${Context7ServiceName}"]
+                ],
+                "period": 60,
+                "stat": "Average"
+              }
+            },
+            {
+              "type": "alarm",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "title": "Service Alarms",
+                "alarms": [
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-${Environment}-oauthgateway-cpu-alarm",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-${Environment}-combined-cpu-alarm",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-${Environment}-oauthgateway-memory-alarm",
+                  "arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AppName}-${Environment}-combined-memory-alarm"
+                ]
+              }
+            }
+          ]
+        }
+    Metadata:
+      SamResourceId: MCPServicesDashboard
+
+  # ============================================
+  # OAuth Gateway Alarms
+  # Pattern: ${AppName}-${Environment}-{service}-{metric}-alarm
+  # ============================================
+  OAuthGatewayCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-oauthgateway-cpu-alarm
+      AlarmDescription: !Sub "OAuth Gateway CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref OAuthGatewayServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: OAuthGatewayCPUAlarm
+
+  OAuthGatewayMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-oauthgateway-memory-alarm
+      AlarmDescription: !Sub "OAuth Gateway memory utilization exceeds ${MemoryAlarmThreshold}%"
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref OAuthGatewayServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref MemoryAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: OAuthGatewayMemoryAlarm
+
+  OAuthGatewayTaskCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-oauthgateway-taskcount-alarm
+      AlarmDescription: "OAuth Gateway running task count is below minimum threshold"
+      MetricName: RunningTaskCount
+      Namespace: ECS/ContainerInsights
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref OAuthGatewayServiceName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: !Ref HealthyHostCountThreshold
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref CriticalAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: OAuthGatewayTaskCountAlarm
+
+  # ============================================
+  # Combined Service Alarms
+  # ============================================
+  CombinedServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-combined-cpu-alarm
+      AlarmDescription: !Sub "Combined Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref CombinedServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: CombinedServiceCPUAlarm
+
+  CombinedServiceMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-combined-memory-alarm
+      AlarmDescription: !Sub "Combined Service memory utilization exceeds ${MemoryAlarmThreshold}%"
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref CombinedServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref MemoryAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: CombinedServiceMemoryAlarm
+
+  CombinedServiceTaskCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-combined-taskcount-alarm
+      AlarmDescription: "Combined Service running task count is below minimum threshold"
+      MetricName: RunningTaskCount
+      Namespace: ECS/ContainerInsights
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref CombinedServiceName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: !Ref HealthyHostCountThreshold
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref CriticalAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: CombinedServiceTaskCountAlarm
+
+  # ============================================
+  # Outlook Service Alarms
+  # ============================================
+  OutlookServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-outlook-cpu-alarm
+      AlarmDescription: !Sub "Outlook Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref OutlookServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: OutlookServiceCPUAlarm
+
+  OutlookServiceTaskCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-outlook-taskcount-alarm
+      AlarmDescription: "Outlook Service running task count is below minimum threshold"
+      MetricName: RunningTaskCount
+      Namespace: ECS/ContainerInsights
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref OutlookServiceName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: !Ref HealthyHostCountThreshold
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref CriticalAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: OutlookServiceTaskCountAlarm
+
+  # ============================================
+  # SharePoint Service Alarms
+  # ============================================
+  SharePointServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-sharepoint-cpu-alarm
+      AlarmDescription: !Sub "SharePoint Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref SharePointServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: SharePointServiceCPUAlarm
+
+  # ============================================
+  # Teams Service Alarms
+  # ============================================
+  TeamsServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-teams-cpu-alarm
+      AlarmDescription: !Sub "Teams Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref TeamsServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: TeamsServiceCPUAlarm
+
+  # ============================================
+  # Azure DevOps Service Alarms
+  # ============================================
+  AzureDevOpsServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-azuredevops-cpu-alarm
+      AlarmDescription: !Sub "Azure DevOps Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref AzureDevOpsServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: AzureDevOpsServiceCPUAlarm
+
+  # ============================================
+  # Snowflake Service Alarms
+  # ============================================
+  SnowflakeServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-snowflake-cpu-alarm
+      AlarmDescription: !Sub "Snowflake Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref SnowflakeServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: SnowflakeServiceCPUAlarm
+
+  # ============================================
+  # Context7 Service Alarms
+  # ============================================
+  Context7ServiceCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-context7-cpu-alarm
+      AlarmDescription: !Sub "Context7 Service CPU utilization exceeds ${CPUAlarmThreshold}%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref Context7ServiceName
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: !Ref CPUAlarmThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      OKActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: Context7ServiceCPUAlarm
+
+  Context7ServiceTaskCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-context7-taskcount-alarm
+      AlarmDescription: "Context7 Service running task count is below minimum threshold"
+      MetricName: RunningTaskCount
+      Namespace: ECS/ContainerInsights
+      Dimensions:
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+        - Name: ServiceName
+          Value: !Ref Context7ServiceName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: !Ref HealthyHostCountThreshold
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref CriticalAlertsTopic
+      TreatMissingData: breaching
+    Metadata:
+      SamResourceId: Context7ServiceTaskCountAlarm
+
+  # ============================================
+  # Composite Alarms for Service Health
+  # ============================================
+  MCPCriticalServicesCompositeAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      AlarmName: !Sub ${AppName}-${Environment}-critical-services-composite-alarm
+      AlarmDescription: "Composite alarm for critical MCP services (OAuth Gateway and Combined Service)"
+      AlarmRule: !Sub |
+        ALARM(${OAuthGatewayTaskCountAlarm}) OR ALARM(${CombinedServiceTaskCountAlarm})
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      OKActions:
+        - !Ref CriticalAlertsTopic
+    Metadata:
+      SamResourceId: MCPCriticalServicesCompositeAlarm
+
+Outputs:
+  CriticalAlertsTopicArn:
+    Description: ARN of Critical Alerts SNS Topic
+    Value: !Ref CriticalAlertsTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-CriticalAlertsTopicArn
+
+  WarningAlertsTopicArn:
+    Description: ARN of Warning Alerts SNS Topic
+    Value: !Ref WarningAlertsTopic
+    Export:
+      Name: !Sub ${AWS::StackName}-WarningAlertsTopicArn
+
+  DashboardName:
+    Description: CloudWatch Dashboard Name
+    Value: !Ref MCPServicesDashboard
+    Export:
+      Name: !Sub ${AWS::StackName}-DashboardName
+
+  OAuthGatewayCPUAlarmArn:
+    Description: OAuth Gateway CPU Alarm ARN
+    Value: !GetAtt OAuthGatewayCPUAlarm.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-OAuthGatewayCPUAlarmArn
+
+  CombinedServiceCPUAlarmArn:
+    Description: Combined Service CPU Alarm ARN
+    Value: !GetAtt CombinedServiceCPUAlarm.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CombinedServiceCPUAlarmArn
+
+  CompositeAlarmArn:
+    Description: Critical Services Composite Alarm ARN
+    Value: !GetAtt MCPCriticalServicesCompositeAlarm.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CompositeAlarmArn

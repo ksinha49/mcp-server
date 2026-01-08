@@ -1,0 +1,340 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: Security Groups for MCP Services
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for security groups
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: VPC CIDR block for internal traffic
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcId
+          - VpcCidr
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ALB Security Group (public-facing)
+  # Pattern: {app}-{env}-{purpose}-sg
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-alb-sg
+      GroupDescription: !Sub Security group for ${AppName} Application Load Balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS from internet
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP from internet (redirect to HTTPS)
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-alb-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # NLB Security Group (internal for PrivateLink)
+  NLBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-nlb-sg
+      GroupDescription: !Sub Security group for ${AppName} Network Load Balancer (PrivateLink)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8006
+          CidrIp: !Ref VpcCidr
+          Description: MCP service ports from VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-nlb-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ECS Services Security Group
+  ECSServicesSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-ecs-services-sg
+      GroupDescription: !Sub Security group for ${AppName} ECS Services
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-ecs-services-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Ingress from ALB to ECS Services
+  ECSServicesIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECSServicesSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8006
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: Allow traffic from ALB
+
+  # Ingress from NLB to ECS Services
+  ECSServicesIngressFromNLB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECSServicesSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8006
+      SourceSecurityGroupId: !Ref NLBSecurityGroup
+      Description: Allow traffic from NLB (PrivateLink)
+
+  # Ingress for internal service-to-service communication
+  ECSServicesIngressInternal:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECSServicesSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8006
+      SourceSecurityGroupId: !Ref ECSServicesSecurityGroup
+      Description: Allow internal service-to-service traffic
+
+  # Egress for ECS Services (HTTPS to external APIs)
+  ECSServicesEgressHTTPS:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ECSServicesSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      Description: HTTPS to external APIs (Microsoft, Snowflake, etc.)
+
+  # VPC Endpoints Security Group
+  VPCEndpointsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-vpc-endpoints-sg
+      GroupDescription: !Sub Security group for ${AppName} VPC Endpoints
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+          Description: HTTPS from VPC for AWS services
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-vpc-endpoints-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Database Security Group (if using RDS)
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-database-sg
+      GroupDescription: !Sub Security group for ${AppName} Database
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ECSServicesSecurityGroup
+          Description: PostgreSQL from ECS services
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-database-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Redis Security Group (if using ElastiCache)
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AppName}-${Environment}-redis-sg
+      GroupDescription: !Sub Security group for ${AppName} Redis
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref ECSServicesSecurityGroup
+          Description: Redis from ECS services
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-redis-sg
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+Outputs:
+  ALBSecurityGroupId:
+    Description: ID of the ALB Security Group
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ALBSecurityGroupId
+
+  NLBSecurityGroupId:
+    Description: ID of the NLB Security Group
+    Value: !Ref NLBSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-NLBSecurityGroupId
+
+  ECSServicesSecurityGroupId:
+    Description: ID of the ECS Services Security Group
+    Value: !Ref ECSServicesSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-ECSServicesSecurityGroupId
+
+  VPCEndpointsSecurityGroupId:
+    Description: ID of the VPC Endpoints Security Group
+    Value: !Ref VPCEndpointsSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCEndpointsSecurityGroupId
+
+  DatabaseSecurityGroupId:
+    Description: ID of the Database Security Group
+    Value: !Ref DatabaseSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseSecurityGroupId
+
+  RedisSecurityGroupId:
+    Description: ID of the Redis Security Group
+    Value: !Ref RedisSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-RedisSecurityGroupId

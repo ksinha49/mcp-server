@@ -1,0 +1,151 @@
+{
+  "Description": "Staging/Model environment parameters for MCP infrastructure (Ameritas naming standards)",
+
+  "Naming": {
+    "AWSAccountName": "alic-aio-mcp",
+    "CompanyName": "alic",
+    "AppName": "mcp",
+    "Environment": "m",
+    "AccountConstruct": "alic-aio-mcp"
+  },
+
+  "Compliance": {
+    "DataClassification": "confidential",
+    "OwnerEmail": "aio-support@ameritas.com",
+    "CostCenter": "aio"
+  },
+
+  "AWSRegion": "us-east-2",
+
+  "VPC": {
+    "_comment": "Replace with your actual VPC configuration",
+    "VpcId": "vpc-xxxxxxxxxxxxxxxxx",
+    "VpcCidr": "10.1.0.0/16",
+    "PrivateSubnetIds": [
+      "subnet-xxxxxxxxxxxxxxxxx",
+      "subnet-yyyyyyyyyyyyyyyyy"
+    ],
+    "PublicSubnetIds": [
+      "subnet-aaaaaaaaaaaaaaaaa",
+      "subnet-bbbbbbbbbbbbbbbbb"
+    ]
+  },
+
+  "ECR": {
+    "_comment": "ECR repository configuration",
+    "RepositoryUri": "123456789012.dkr.ecr.us-east-2.amazonaws.com",
+    "ImageTag": "staging"
+  },
+
+  "CrossAccount": {
+    "_comment": "LiteLLM consumer account for PrivateLink - disabled for staging",
+    "LiteLLMAccountId": "",
+    "EnablePrivateLink": false
+  },
+
+  "Scaling": {
+    "OAuthGateway": {
+      "MinCapacity": 1,
+      "MaxCapacity": 4
+    },
+    "CombinedService": {
+      "MinCapacity": 1,
+      "MaxCapacity": 4
+    },
+    "MCPServices": {
+      "MinCapacity": 1,
+      "MaxCapacity": 2
+    },
+    "CPUTargetValue": 70,
+    "MemoryTargetValue": 80
+  },
+
+  "Monitoring": {
+    "_comment": "CloudWatch Alarms and SNS configuration - reduced thresholds for staging",
+    "AlertEmail": "aio-alerts@ameritas.com",
+    "CPUAlarmThreshold": 90,
+    "MemoryAlarmThreshold": 90,
+    "HealthyHostCountThreshold": 1,
+    "Alarms": {
+      "_comment": "Alarm patterns follow: ${AppName}-${Environment}-{service}-{metric}-alarm",
+      "Examples": [
+        "mcp-m-oauthgateway-cpu-alarm",
+        "mcp-m-combined-memory-alarm",
+        "mcp-m-critical-services-composite-alarm"
+      ]
+    },
+    "SNSTopics": {
+      "_comment": "Topic patterns follow: ${AWSAccountName}-${AWS::StackName}-{purpose}-topic",
+      "CriticalAlerts": "alic-aio-mcp-monitoring-critical-alerts-topic",
+      "WarningAlerts": "alic-aio-mcp-monitoring-warning-alerts-topic"
+    }
+  },
+
+  "Secrets": {
+    "_comment": "Path pattern: mcp/{env}/{service}/{parameter}",
+    "Paths": {
+      "MicrosoftClientId": "mcp/m/microsoft/client_id",
+      "MicrosoftClientSecret": "mcp/m/microsoft/client_secret",
+      "DatabaseUrl": "mcp/m/database/url",
+      "RedisUrl": "mcp/m/redis/url",
+      "TokenEncryptionKey": "mcp/m/encryption/token_key",
+      "SnowflakePassword": "mcp/m/snowflake/password",
+      "AzureDevOpsPat": "mcp/m/azuredevops/pat"
+    }
+  },
+
+  "SSMParameters": {
+    "_comment": "Path pattern: /mcp/{env}/{service}/{parameter}",
+    "Paths": {
+      "MicrosoftTenantId": "/mcp/m/microsoft/tenant_id",
+      "SnowflakeAccount": "/mcp/m/snowflake/account",
+      "SnowflakeUser": "/mcp/m/snowflake/user",
+      "SnowflakeWarehouse": "/mcp/m/snowflake/warehouse",
+      "SnowflakeDatabase": "/mcp/m/snowflake/database",
+      "AzureDevOpsOrg": "/mcp/m/azuredevops/org"
+    }
+  },
+
+  "NestedStacks": {
+    "_comment": "Template configuration for parent stack deployment",
+    "TemplateBucketName": "alic-aio-mcp-cloudformation-templates",
+    "TemplateBucketPrefix": "cloudformation/templates",
+    "DeploymentOrder": [
+      "iam-stack.yaml",
+      "security-groups-stack.yaml",
+      "ecs-cluster-stack.yaml",
+      "cloud-map-stack.yaml",
+      "nlb-stack.yaml",
+      "mcp-services-stack.yaml",
+      "autoscaling-stack.yaml",
+      "monitoring-stack.yaml"
+    ]
+  },
+
+  "ResourceNamingExamples": {
+    "_comment": "Examples of resource names following Ameritas standards",
+    "IAMRole": "mcp-m-ecs-task-execution-iamrole",
+    "IAMPolicy": "mcp-m-secretsmanager-readonly-iampolicy",
+    "SecurityGroup": "mcp-m-ecs-services-sg",
+    "ECSCluster": "mcp-m-cluster",
+    "ECSService": "mcp-m-oauthgateway-ecsservice",
+    "TaskDefinition": "mcp-m-oauthgateway-taskdef",
+    "NLB": "mcp-m-nlb",
+    "TargetGroup": "mcp-m-outlook-tg",
+    "LogGroup": "/ecs/mcp-m-oauthgateway",
+    "CloudMapNamespace": "mcp.m.internal",
+    "SNSTopic": "alic-aio-mcp-monitoring-critical-alerts-topic",
+    "CloudWatchAlarm": "mcp-m-oauthgateway-cpu-alarm",
+    "Dashboard": "mcp-m-services-dashboard"
+  },
+
+  "Tags": {
+    "Name": "${AppName}-${Environment}-${ResourcePurpose}-${ResourceType}",
+    "Environment": "m",
+    "Application": "mcp",
+    "Owner": "aio-support@ameritas.com",
+    "CostCenter": "aio",
+    "DataClassification": "confidential",
+    "CreatedBy": "CloudFormation"
+  }
+}

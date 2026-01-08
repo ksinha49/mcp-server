@@ -1,0 +1,414 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: AWS Cloud Map Service Discovery for MCP Services
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID for service discovery
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcId
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # Private DNS Namespace
+  # Pattern: {app}.{env}.internal
+  MCPNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: !Sub ${AppName}.${Environment}.internal
+      Vpc: !Ref VpcId
+      Description: !Sub ${AppName} Service Discovery Namespace (${Environment})
+      Properties:
+        DnsProperties:
+          SOA:
+            TTL: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-namespace
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # OAuth Gateway Service Discovery
+  OAuthGatewayServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: oauthgateway
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: OAuth Gateway Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-oauthgateway-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Combined Service Discovery
+  CombinedServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: combined
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Combined MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-combined-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Outlook Service Discovery
+  OutlookServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: outlook
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Outlook MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-outlook-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # SharePoint Service Discovery
+  SharePointServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: sharepoint
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: SharePoint MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-sharepoint-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Teams Service Discovery
+  TeamsServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: teams
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Teams MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-teams-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Azure DevOps Service Discovery
+  AzureDevOpsServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: azuredevops
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Azure DevOps MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-azuredevops-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Snowflake Service Discovery
+  SnowflakeServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: snowflake
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Snowflake MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-snowflake-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # Context7 Service Discovery
+  Context7ServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: context7
+      NamespaceId: !GetAtt MCPNamespace.Id
+      Description: Context7 MCP Service
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-context7-discovery
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+Outputs:
+  NamespaceId:
+    Description: Cloud Map Namespace ID
+    Value: !GetAtt MCPNamespace.Id
+    Export:
+      Name: !Sub ${AWS::StackName}-NamespaceId
+
+  NamespaceArn:
+    Description: Cloud Map Namespace ARN
+    Value: !GetAtt MCPNamespace.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-NamespaceArn
+
+  NamespaceName:
+    Description: Cloud Map Namespace Name
+    Value: !Sub ${AppName}.${Environment}.internal
+    Export:
+      Name: !Sub ${AWS::StackName}-NamespaceName
+
+  OAuthGatewayServiceDiscoveryArn:
+    Description: OAuth Gateway Service Discovery ARN
+    Value: !GetAtt OAuthGatewayServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-OAuthGatewayServiceDiscoveryArn
+
+  CombinedServiceDiscoveryArn:
+    Description: Combined Service Discovery ARN
+    Value: !GetAtt CombinedServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CombinedServiceDiscoveryArn
+
+  OutlookServiceDiscoveryArn:
+    Description: Outlook Service Discovery ARN
+    Value: !GetAtt OutlookServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-OutlookServiceDiscoveryArn
+
+  SharePointServiceDiscoveryArn:
+    Description: SharePoint Service Discovery ARN
+    Value: !GetAtt SharePointServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SharePointServiceDiscoveryArn
+
+  TeamsServiceDiscoveryArn:
+    Description: Teams Service Discovery ARN
+    Value: !GetAtt TeamsServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-TeamsServiceDiscoveryArn
+
+  AzureDevOpsServiceDiscoveryArn:
+    Description: Azure DevOps Service Discovery ARN
+    Value: !GetAtt AzureDevOpsServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-AzureDevOpsServiceDiscoveryArn
+
+  SnowflakeServiceDiscoveryArn:
+    Description: Snowflake Service Discovery ARN
+    Value: !GetAtt SnowflakeServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SnowflakeServiceDiscoveryArn
+
+  Context7ServiceDiscoveryArn:
+    Description: Context7 Service Discovery ARN
+    Value: !GetAtt Context7ServiceDiscovery.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-Context7ServiceDiscoveryArn

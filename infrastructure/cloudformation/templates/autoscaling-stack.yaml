@@ -1,0 +1,482 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: Auto-scaling policies for MCP Services
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  ECSClusterName:
+    Type: String
+    Description: ECS Cluster name
+
+  AutoScalingRoleArn:
+    Type: String
+    Description: Auto Scaling Role ARN
+
+  # Min/Max capacity settings
+  OAuthGatewayMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of OAuth Gateway tasks
+
+  OAuthGatewayMaxCapacity:
+    Type: Number
+    Default: 10
+    Description: Maximum number of OAuth Gateway tasks
+
+  CombinedServiceMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of Combined Service tasks
+
+  CombinedServiceMaxCapacity:
+    Type: Number
+    Default: 10
+    Description: Maximum number of Combined Service tasks
+
+  MCPServiceMinCapacity:
+    Type: Number
+    Default: 2
+    Description: Minimum number of individual MCP service tasks
+
+  MCPServiceMaxCapacity:
+    Type: Number
+    Default: 6
+    Description: Maximum number of individual MCP service tasks
+
+  # Scaling thresholds
+  CPUTargetValue:
+    Type: Number
+    Default: 70
+    Description: Target CPU utilization percentage
+
+  MemoryTargetValue:
+    Type: Number
+    Default: 80
+    Description: Target Memory utilization percentage
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "ECS Configuration"
+        Parameters:
+          - ECSClusterName
+          - AutoScalingRoleArn
+      - Label:
+          default: "Scaling Configuration"
+        Parameters:
+          - OAuthGatewayMinCapacity
+          - OAuthGatewayMaxCapacity
+          - CombinedServiceMinCapacity
+          - CombinedServiceMaxCapacity
+          - MCPServiceMinCapacity
+          - MCPServiceMaxCapacity
+          - CPUTargetValue
+          - MemoryTargetValue
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ============================================
+  # OAuth Gateway Auto-Scaling
+  # ============================================
+  OAuthGatewayScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref OAuthGatewayMaxCapacity
+      MinCapacity: !Ref OAuthGatewayMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-oauthgateway-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  OAuthGatewayCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-oauthgateway-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref OAuthGatewayScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  OAuthGatewayMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-oauthgateway-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref OAuthGatewayScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Combined Service Auto-Scaling
+  # ============================================
+  CombinedServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref CombinedServiceMaxCapacity
+      MinCapacity: !Ref CombinedServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-combined-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  CombinedServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-combined-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref CombinedServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  CombinedServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-combined-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref CombinedServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Outlook Service Auto-Scaling
+  # ============================================
+  OutlookServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-outlook-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  OutlookServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-outlook-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref OutlookServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  OutlookServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-outlook-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref OutlookServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # SharePoint Service Auto-Scaling
+  # ============================================
+  SharePointServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-sharepoint-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  SharePointServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-sharepoint-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref SharePointServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  SharePointServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-sharepoint-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref SharePointServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Teams Service Auto-Scaling
+  # ============================================
+  TeamsServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-teams-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  TeamsServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-teams-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref TeamsServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  TeamsServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-teams-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref TeamsServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Azure DevOps Service Auto-Scaling
+  # ============================================
+  AzureDevOpsServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-azuredevops-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  AzureDevOpsServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-azuredevops-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AzureDevOpsServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  AzureDevOpsServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-azuredevops-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AzureDevOpsServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Snowflake Service Auto-Scaling
+  # ============================================
+  SnowflakeServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-snowflake-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  SnowflakeServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-snowflake-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref SnowflakeServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  SnowflakeServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-snowflake-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref SnowflakeServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ============================================
+  # Context7 Service Auto-Scaling
+  # ============================================
+  Context7ServiceScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MCPServiceMaxCapacity
+      MinCapacity: !Ref MCPServiceMinCapacity
+      ResourceId: !Sub service/${ECSClusterName}/${AppName}-${Environment}-context7-ecsservice
+      RoleARN: !Ref AutoScalingRoleArn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  Context7ServiceCPUScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-context7-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref Context7ServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CPUTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  Context7ServiceMemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${AppName}-${Environment}-context7-memory-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref Context7ServiceScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: !Ref MemoryTargetValue
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  OAuthGatewayScalableTargetId:
+    Description: OAuth Gateway Scalable Target ID
+    Value: !Ref OAuthGatewayScalableTarget
+
+  CombinedServiceScalableTargetId:
+    Description: Combined Service Scalable Target ID
+    Value: !Ref CombinedServiceScalableTarget
+
+  OutlookServiceScalableTargetId:
+    Description: Outlook Service Scalable Target ID
+    Value: !Ref OutlookServiceScalableTarget
+
+  SharePointServiceScalableTargetId:
+    Description: SharePoint Service Scalable Target ID
+    Value: !Ref SharePointServiceScalableTarget
+
+  TeamsServiceScalableTargetId:
+    Description: Teams Service Scalable Target ID
+    Value: !Ref TeamsServiceScalableTarget
+
+  AzureDevOpsServiceScalableTargetId:
+    Description: Azure DevOps Service Scalable Target ID
+    Value: !Ref AzureDevOpsServiceScalableTarget
+
+  SnowflakeServiceScalableTargetId:
+    Description: Snowflake Service Scalable Target ID
+    Value: !Ref SnowflakeServiceScalableTarget
+
+  Context7ServiceScalableTargetId:
+    Description: Context7 Service Scalable Target ID
+    Value: !Ref Context7ServiceScalableTarget

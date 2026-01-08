@@ -1,0 +1,1217 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: ECS Services for all MCP Servers
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID
+
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Private subnet IDs for ECS services
+
+  ECSClusterArn:
+    Type: String
+    Description: ECS Cluster ARN
+
+  ECSServicesSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group for ECS services
+
+  ECSTaskExecutionRoleArn:
+    Type: String
+    Description: ECS Task Execution Role ARN
+
+  # Service-specific Task Role ARNs
+  OAuthGatewayTaskRoleArn:
+    Type: String
+    Description: OAuth Gateway Task Role ARN
+
+  CombinedServiceTaskRoleArn:
+    Type: String
+    Description: Combined Service Task Role ARN
+
+  OutlookServiceTaskRoleArn:
+    Type: String
+    Description: Outlook Service Task Role ARN
+
+  SharePointServiceTaskRoleArn:
+    Type: String
+    Description: SharePoint Service Task Role ARN
+
+  TeamsServiceTaskRoleArn:
+    Type: String
+    Description: Teams Service Task Role ARN
+
+  AzureDevOpsServiceTaskRoleArn:
+    Type: String
+    Description: Azure DevOps Service Task Role ARN
+
+  SnowflakeServiceTaskRoleArn:
+    Type: String
+    Description: Snowflake Service Task Role ARN
+
+  Context7ServiceTaskRoleArn:
+    Type: String
+    Description: Context7 Service Task Role ARN
+
+  # Target Group ARNs
+  CombinedTargetGroupArn:
+    Type: String
+    Description: Combined Service Target Group ARN
+
+  OAuthGatewayTargetGroupArn:
+    Type: String
+    Description: OAuth Gateway Target Group ARN
+
+  OutlookTargetGroupArn:
+    Type: String
+    Description: Outlook Target Group ARN
+
+  SharePointTargetGroupArn:
+    Type: String
+    Description: SharePoint Target Group ARN
+
+  TeamsTargetGroupArn:
+    Type: String
+    Description: Teams Target Group ARN
+
+  AzureDevOpsTargetGroupArn:
+    Type: String
+    Description: Azure DevOps Target Group ARN
+
+  SnowflakeTargetGroupArn:
+    Type: String
+    Description: Snowflake Target Group ARN
+
+  Context7TargetGroupArn:
+    Type: String
+    Description: Context7 Target Group ARN
+
+  # Service Discovery ARNs
+  OAuthGatewayServiceDiscoveryArn:
+    Type: String
+    Description: OAuth Gateway Service Discovery ARN
+
+  CombinedServiceDiscoveryArn:
+    Type: String
+    Description: Combined Service Discovery ARN
+
+  OutlookServiceDiscoveryArn:
+    Type: String
+    Description: Outlook Service Discovery ARN
+
+  SharePointServiceDiscoveryArn:
+    Type: String
+    Description: SharePoint Service Discovery ARN
+
+  TeamsServiceDiscoveryArn:
+    Type: String
+    Description: Teams Service Discovery ARN
+
+  AzureDevOpsServiceDiscoveryArn:
+    Type: String
+    Description: Azure DevOps Service Discovery ARN
+
+  SnowflakeServiceDiscoveryArn:
+    Type: String
+    Description: Snowflake Service Discovery ARN
+
+  Context7ServiceDiscoveryArn:
+    Type: String
+    Description: Context7 Service Discovery ARN
+
+  # Container Image URIs
+  ECRRepositoryUri:
+    Type: String
+    Description: ECR Repository base URI (e.g., 123456789012.dkr.ecr.us-east-2.amazonaws.com)
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Container image tag
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - VpcId
+          - PrivateSubnetIds
+          - ECSServicesSecurityGroupId
+      - Label:
+          default: "ECS Configuration"
+        Parameters:
+          - ECSClusterArn
+          - ECSTaskExecutionRoleArn
+          - ECRRepositoryUri
+          - ImageTag
+      - Label:
+          default: "Task Roles"
+        Parameters:
+          - OAuthGatewayTaskRoleArn
+          - CombinedServiceTaskRoleArn
+          - OutlookServiceTaskRoleArn
+          - SharePointServiceTaskRoleArn
+          - TeamsServiceTaskRoleArn
+          - AzureDevOpsServiceTaskRoleArn
+          - SnowflakeServiceTaskRoleArn
+          - Context7ServiceTaskRoleArn
+      - Label:
+          default: "Target Groups"
+        Parameters:
+          - OAuthGatewayTargetGroupArn
+          - CombinedTargetGroupArn
+          - OutlookTargetGroupArn
+          - SharePointTargetGroupArn
+          - TeamsTargetGroupArn
+          - AzureDevOpsTargetGroupArn
+          - SnowflakeTargetGroupArn
+          - Context7TargetGroupArn
+      - Label:
+          default: "Service Discovery"
+        Parameters:
+          - OAuthGatewayServiceDiscoveryArn
+          - CombinedServiceDiscoveryArn
+          - OutlookServiceDiscoveryArn
+          - SharePointServiceDiscoveryArn
+          - TeamsServiceDiscoveryArn
+          - AzureDevOpsServiceDiscoveryArn
+          - SnowflakeServiceDiscoveryArn
+          - Context7ServiceDiscoveryArn
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ============================================
+  # OAuth Gateway Service
+  # Pattern: {app}-{env}-{service}-taskdef / {app}-{env}-{service}-ecsservice
+  # ============================================
+  OAuthGatewayTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-oauthgateway-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref OAuthGatewayTaskRoleArn
+      ContainerDefinitions:
+        - Name: oauth-gateway
+          Image: !Sub ${ECRRepositoryUri}/mcp-oauth-gateway:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+          Secrets:
+            - Name: REDIS_URL
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/redis/url
+            - Name: DATABASE_URL
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/database/url
+            - Name: MICROSOFT_CLIENT_ID
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_id
+            - Name: MICROSOFT_CLIENT_SECRET
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_secret
+            - Name: MICROSOFT_TENANT_ID
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/microsoft/tenant_id
+            - Name: TOKEN_ENCRYPTION_KEY
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/encryption/token_key
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-oauthgateway
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8000/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-oauthgateway-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  OAuthGatewayService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-oauthgateway-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref OAuthGatewayTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref OAuthGatewayTargetGroupArn
+          ContainerName: oauth-gateway
+          ContainerPort: 8000
+      ServiceRegistries:
+        - RegistryArn: !Ref OAuthGatewayServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-oauthgateway-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Combined MCP Service
+  # ============================================
+  CombinedServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-combined-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref CombinedServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: combined-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-combined-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: OAUTH_GATEWAY_URL
+              Value: !Sub http://oauth-gateway.${AppName}.${Environment}.internal:8000
+          Secrets:
+            - Name: MICROSOFT_CLIENT_ID
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_id
+            - Name: MICROSOFT_CLIENT_SECRET
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_secret
+            - Name: MICROSOFT_TENANT_ID
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/microsoft/tenant_id
+            - Name: TOKEN_ENCRYPTION_KEY
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/encryption/token_key
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-combined
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8000/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-combined-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  CombinedService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-combined-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref CombinedServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref CombinedTargetGroupArn
+          ContainerName: combined-service
+          ContainerPort: 8000
+      ServiceRegistries:
+        - RegistryArn: !Ref CombinedServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-combined-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Outlook MCP Service
+  # ============================================
+  OutlookServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-outlook-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref OutlookServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: outlook-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-outlook-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8001
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8001'
+            - Name: OAUTH_GATEWAY_URL
+              Value: !Sub http://oauth-gateway.${AppName}.${Environment}.internal:8000
+          Secrets:
+            - Name: MICROSOFT_CLIENT_ID
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_id
+            - Name: MICROSOFT_CLIENT_SECRET
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_secret
+            - Name: MICROSOFT_TENANT_ID
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/microsoft/tenant_id
+            - Name: TOKEN_ENCRYPTION_KEY
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/encryption/token_key
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-outlook
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8001/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-outlook-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  OutlookService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-outlook-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref OutlookServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref OutlookTargetGroupArn
+          ContainerName: outlook-service
+          ContainerPort: 8001
+      ServiceRegistries:
+        - RegistryArn: !Ref OutlookServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-outlook-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # SharePoint MCP Service
+  # ============================================
+  SharePointServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-sharepoint-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref SharePointServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: sharepoint-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-sharepoint-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8002
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8002'
+            - Name: OAUTH_GATEWAY_URL
+              Value: !Sub http://oauth-gateway.${AppName}.${Environment}.internal:8000
+          Secrets:
+            - Name: MICROSOFT_CLIENT_ID
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_id
+            - Name: MICROSOFT_CLIENT_SECRET
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_secret
+            - Name: MICROSOFT_TENANT_ID
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/microsoft/tenant_id
+            - Name: TOKEN_ENCRYPTION_KEY
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/encryption/token_key
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-sharepoint
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8002/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-sharepoint-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  SharePointService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-sharepoint-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref SharePointServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref SharePointTargetGroupArn
+          ContainerName: sharepoint-service
+          ContainerPort: 8002
+      ServiceRegistries:
+        - RegistryArn: !Ref SharePointServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-sharepoint-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Teams MCP Service
+  # ============================================
+  TeamsServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-teams-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref TeamsServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: teams-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-teams-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8003
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8003'
+            - Name: OAUTH_GATEWAY_URL
+              Value: !Sub http://oauth-gateway.${AppName}.${Environment}.internal:8000
+          Secrets:
+            - Name: MICROSOFT_CLIENT_ID
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_id
+            - Name: MICROSOFT_CLIENT_SECRET
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/microsoft/client_secret
+            - Name: MICROSOFT_TENANT_ID
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/microsoft/tenant_id
+            - Name: TOKEN_ENCRYPTION_KEY
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/encryption/token_key
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-teams
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8003/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-teams-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  TeamsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-teams-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref TeamsServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref TeamsTargetGroupArn
+          ContainerName: teams-service
+          ContainerPort: 8003
+      ServiceRegistries:
+        - RegistryArn: !Ref TeamsServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-teams-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Azure DevOps MCP Service
+  # ============================================
+  AzureDevOpsServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-azuredevops-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref AzureDevOpsServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: azuredevops-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-azuredevops-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8004
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8004'
+            - Name: OAUTH_GATEWAY_URL
+              Value: !Sub http://oauth-gateway.${AppName}.${Environment}.internal:8000
+          Secrets:
+            - Name: AZURE_DEVOPS_PAT
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/azuredevops/pat
+            - Name: AZURE_DEVOPS_ORG
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/azuredevops/org
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-azuredevops
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8004/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-azuredevops-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  AzureDevOpsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-azuredevops-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref AzureDevOpsServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref AzureDevOpsTargetGroupArn
+          ContainerName: azuredevops-service
+          ContainerPort: 8004
+      ServiceRegistries:
+        - RegistryArn: !Ref AzureDevOpsServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-azuredevops-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Snowflake MCP Service
+  # ============================================
+  SnowflakeServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-snowflake-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref SnowflakeServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: snowflake-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-snowflake-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8005
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8005'
+          Secrets:
+            - Name: SNOWFLAKE_ACCOUNT
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/snowflake/account
+            - Name: SNOWFLAKE_USER
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/snowflake/user
+            - Name: SNOWFLAKE_PASSWORD
+              ValueFrom: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:mcp/${Environment}/snowflake/password
+            - Name: SNOWFLAKE_WAREHOUSE
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/snowflake/warehouse
+            - Name: SNOWFLAKE_DATABASE
+              ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp/${Environment}/snowflake/database
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-snowflake
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8005/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-snowflake-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  SnowflakeService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-snowflake-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref SnowflakeServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref SnowflakeTargetGroupArn
+          ContainerName: snowflake-service
+          ContainerPort: 8005
+      ServiceRegistries:
+        - RegistryArn: !Ref SnowflakeServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-snowflake-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # ============================================
+  # Context7 MCP Service (TypeScript)
+  # ============================================
+  Context7ServiceTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-${Environment}-context7-taskdef
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      TaskRoleArn: !Ref Context7ServiceTaskRoleArn
+      ContainerDefinitions:
+        - Name: context7-service
+          Image: !Sub ${ECRRepositoryUri}/mcp-context7-service:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8006
+              Protocol: tcp
+          Environment:
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: PORT
+              Value: '8006'
+            - Name: NODE_ENV
+              Value: production
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub /ecs/${AppName}-${Environment}-context7
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - curl -f http://localhost:8006/health || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-context7-taskdef
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  Context7Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-${Environment}-context7-ecsservice
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref Context7ServiceTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ECSServicesSecurityGroupId
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref Context7TargetGroupArn
+          ContainerName: context7-service
+          ContainerPort: 8006
+      ServiceRegistries:
+        - RegistryArn: !Ref Context7ServiceDiscoveryArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-context7-ecsservice
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+Outputs:
+  OAuthGatewayServiceArn:
+    Description: OAuth Gateway Service ARN
+    Value: !Ref OAuthGatewayService
+    Export:
+      Name: !Sub ${AWS::StackName}-OAuthGatewayServiceArn
+
+  OAuthGatewayServiceName:
+    Description: OAuth Gateway Service Name
+    Value: !Sub ${AppName}-${Environment}-oauthgateway-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-OAuthGatewayServiceName
+
+  CombinedServiceArn:
+    Description: Combined Service ARN
+    Value: !Ref CombinedService
+    Export:
+      Name: !Sub ${AWS::StackName}-CombinedServiceArn
+
+  CombinedServiceName:
+    Description: Combined Service Name
+    Value: !Sub ${AppName}-${Environment}-combined-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-CombinedServiceName
+
+  OutlookServiceArn:
+    Description: Outlook Service ARN
+    Value: !Ref OutlookService
+    Export:
+      Name: !Sub ${AWS::StackName}-OutlookServiceArn
+
+  OutlookServiceName:
+    Description: Outlook Service Name
+    Value: !Sub ${AppName}-${Environment}-outlook-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-OutlookServiceName
+
+  SharePointServiceArn:
+    Description: SharePoint Service ARN
+    Value: !Ref SharePointService
+    Export:
+      Name: !Sub ${AWS::StackName}-SharePointServiceArn
+
+  SharePointServiceName:
+    Description: SharePoint Service Name
+    Value: !Sub ${AppName}-${Environment}-sharepoint-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-SharePointServiceName
+
+  TeamsServiceArn:
+    Description: Teams Service ARN
+    Value: !Ref TeamsService
+    Export:
+      Name: !Sub ${AWS::StackName}-TeamsServiceArn
+
+  TeamsServiceName:
+    Description: Teams Service Name
+    Value: !Sub ${AppName}-${Environment}-teams-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-TeamsServiceName
+
+  AzureDevOpsServiceArn:
+    Description: Azure DevOps Service ARN
+    Value: !Ref AzureDevOpsService
+    Export:
+      Name: !Sub ${AWS::StackName}-AzureDevOpsServiceArn
+
+  AzureDevOpsServiceName:
+    Description: Azure DevOps Service Name
+    Value: !Sub ${AppName}-${Environment}-azuredevops-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-AzureDevOpsServiceName
+
+  SnowflakeServiceArn:
+    Description: Snowflake Service ARN
+    Value: !Ref SnowflakeService
+    Export:
+      Name: !Sub ${AWS::StackName}-SnowflakeServiceArn
+
+  SnowflakeServiceName:
+    Description: Snowflake Service Name
+    Value: !Sub ${AppName}-${Environment}-snowflake-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-SnowflakeServiceName
+
+  Context7ServiceArn:
+    Description: Context7 Service ARN
+    Value: !Ref Context7Service
+    Export:
+      Name: !Sub ${AWS::StackName}-Context7ServiceArn
+
+  Context7ServiceName:
+    Description: Context7 Service Name
+    Value: !Sub ${AppName}-${Environment}-context7-ecsservice
+    Export:
+      Name: !Sub ${AWS::StackName}-Context7ServiceName

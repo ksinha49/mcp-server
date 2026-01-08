@@ -230,3 +230,102 @@ See [`docs/aws-infrastructure.md`](docs/aws-infrastructure.md) for:
 - Secrets Manager (credentials)
 - CloudWatch Logs (logging)
 - ECR (container registry)
+
+## CloudFormation Resource Naming Standards
+
+All CloudFormation scripts must follow Ameritas naming conventions for consistency and compliance.
+
+### Global Parameters (Required in Every Template)
+
+```yaml
+Parameters:
+  CompanyName:
+    Type: String
+    Default: "alic"
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Description: Application name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+
+  DataClassification:
+    Type: String
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+```
+
+### Resource Naming Patterns
+
+| Resource Type | Pattern | Example |
+|--------------|---------|---------|
+| Lambda | `{app}-{env}-{scope}-lambda-function` | `mcp-p-oauthgateway-lambda-function` |
+| Step Function | `{app}-{env}-{useCase}-stepFunction` | `mcp-d-dataProcessing-stepFunction` |
+| S3 Bucket | `{account}-{group}-{env}-{scope}` | `alic-dan-np-mcp-d-access-logs-S3` |
+| EC2 | `{app}-{env}-{scope}-EC2` | `mcp-p-onDemand-EC2` |
+| RDS | `{app}-{env}-{dbtype}-{deploy}-{name}-RDS` | `mcp-d-aurora-cl-tokendb-RDS` |
+| DynamoDB | `{app}-{env}-{context}-dynamodb` | `mcp-d-token-metadata-dynamodb` |
+| IAM Role | `{app}-{env}-{purpose}-iamrole` | `mcp-p-ecs-task-execution-iamrole` |
+| IAM Policy | `{app}-{env}-{service}-{access}-iampolicy` | `mcp-p-secretsmanager-readonly-iampolicy` |
+| KMS | `{app}-{env}-{classification}-kms` | `mcp-p-confidential-kms` |
+| ECS Cluster | `{app}-{env}-cluster` | `mcp-p-cluster` |
+| ECS Service | `{app}-{env}-{service}-ecsservice` | `mcp-p-oauthgateway-ecsservice` |
+| ECS Task | `{app}-{env}-{service}-taskdef` | `mcp-p-outlook-taskdef` |
+| NLB | `{app}-{env}-nlb` | `mcp-p-nlb` |
+| Target Group | `{app}-{env}-{service}-tg` | `mcp-p-outlook-tg` |
+| Security Group | `{app}-{env}-{purpose}-sg` | `mcp-p-ecs-services-sg` |
+| Log Group | `/ecs/{app}-{env}-{service}` | `/ecs/mcp-p-oauthgateway` |
+
+### Environment Codes
+
+| Code | Environment | Description |
+|------|-------------|-------------|
+| `d` | Development | Development/sandbox |
+| `t` | Test | Testing/QA |
+| `m` | Model | UAT/Staging |
+| `p` | Production | Production |
+
+### Mandatory Tags
+
+```yaml
+Tags:
+  - Key: Name
+    Value: !Sub "${AppName}-${Environment}-${ResourcePurpose}-${ResourceType}"
+  - Key: Environment
+    Value: !Ref Environment
+  - Key: Application
+    Value: !Ref AppName
+  - Key: Owner
+    Value: !Ref OwnerEmail
+  - Key: CostCenter
+    Value: !Ref CostCenter
+  - Key: DataClassification
+    Value: !Ref DataClassification
+  - Key: CreatedBy
+    Value: "CloudFormation"
+```
+
+### Validation Rules
+
+- All names must use lowercase letters (camelCase for specific patterns like `stepFunction`)
+- Use hyphens (-) as separators, not underscores
+- Always include resource type suffix (e.g., `-iamrole`, `-dynamodb`, `-sg`)
+- Keep names concise but descriptive
+- Follow max length constraints per resource type
+
+### CloudFormation Template Location
+
+Templates: `infrastructure/cloudformation/templates/`
+Parameters: `infrastructure/cloudformation/parameters/`
+Scripts: `infrastructure/cloudformation/scripts/`

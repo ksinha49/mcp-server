@@ -1,0 +1,352 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Application: MCP (Model Context Protocol)
+  Purpose: ECS Cluster for MCP Services
+  Owner: AIO Platform Team
+  Managed by: AIO Platform Team
+
+Parameters:
+  AWSAccountName:
+    Type: String
+    Default: "alic-aio-mcp"
+    Description: "AWS Account Name for resource naming (format: company-group-app)"
+
+  CompanyName:
+    Type: String
+    Default: "alic"
+    Description: Company identifier
+    AllowedValues:
+      - alic
+
+  AppName:
+    Type: String
+    Default: "mcp"
+    Description: Application or project name (lowercase, no spaces)
+    AllowedPattern: "^[a-z0-9-]+$"
+
+  Environment:
+    Type: String
+    Default: p
+    AllowedValues:
+      - d    # Development
+      - t    # Test
+      - m    # Model (UAT/Staging)
+      - p    # Production
+    Description: Deployment environment
+
+  DataClassification:
+    Type: String
+    Default: confidential
+    AllowedValues:
+      - public
+      - confidential
+      - secret
+    Description: Data classification level
+
+  OwnerEmail:
+    Type: String
+    Default: "aio-support@ameritas.com"
+    Description: Owner email for tagging
+
+  CostCenter:
+    Type: String
+    Default: "aio"
+    Description: Cost center for billing
+
+  EnableContainerInsights:
+    Type: String
+    Default: enabled
+    AllowedValues:
+      - enabled
+      - disabled
+    Description: Enable CloudWatch Container Insights
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Naming Configuration"
+        Parameters:
+          - AWSAccountName
+          - CompanyName
+          - AppName
+          - Environment
+      - Label:
+          default: "Cluster Configuration"
+        Parameters:
+          - EnableContainerInsights
+      - Label:
+          default: "Compliance & Tagging"
+        Parameters:
+          - DataClassification
+          - OwnerEmail
+          - CostCenter
+
+Resources:
+  # ECS Cluster
+  # Pattern: {app}-{env}-cluster
+  MCPCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${AppName}-${Environment}-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: !Ref EnableContainerInsights
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+          Base: 1
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 2
+      Configuration:
+        ExecuteCommandConfiguration:
+          Logging: DEFAULT
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-cluster
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  # CloudWatch Log Groups
+  # Pattern: /ecs/{app}-{env}-{service}
+  OAuthGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-oauthgateway
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-oauthgateway-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  CombinedServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-combined
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-combined-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  OutlookServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-outlook
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-outlook-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  SharePointServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-sharepoint
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-sharepoint-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  TeamsServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-teams
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-teams-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  AzureDevOpsServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-azuredevops
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-azuredevops-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  SnowflakeServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-snowflake
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-snowflake-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+  Context7ServiceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${Environment}-context7
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-${Environment}-context7-logs
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: !Ref AppName
+        - Key: Owner
+          Value: !Ref OwnerEmail
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: CreatedBy
+          Value: CloudFormation
+
+Outputs:
+  ClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref MCPCluster
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterName
+
+  ClusterArn:
+    Description: ECS Cluster ARN
+    Value: !GetAtt MCPCluster.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterArn
+
+  OAuthGatewayLogGroupName:
+    Description: OAuth Gateway Log Group Name
+    Value: !Ref OAuthGatewayLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-OAuthGatewayLogGroupName
+
+  CombinedServiceLogGroupName:
+    Description: Combined Service Log Group Name
+    Value: !Ref CombinedServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-CombinedServiceLogGroupName
+
+  OutlookServiceLogGroupName:
+    Description: Outlook Service Log Group Name
+    Value: !Ref OutlookServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-OutlookServiceLogGroupName
+
+  SharePointServiceLogGroupName:
+    Description: SharePoint Service Log Group Name
+    Value: !Ref SharePointServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-SharePointServiceLogGroupName
+
+  TeamsServiceLogGroupName:
+    Description: Teams Service Log Group Name
+    Value: !Ref TeamsServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-TeamsServiceLogGroupName
+
+  AzureDevOpsServiceLogGroupName:
+    Description: Azure DevOps Service Log Group Name
+    Value: !Ref AzureDevOpsServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-AzureDevOpsServiceLogGroupName
+
+  SnowflakeServiceLogGroupName:
+    Description: Snowflake Service Log Group Name
+    Value: !Ref SnowflakeServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-SnowflakeServiceLogGroupName
+
+  Context7ServiceLogGroupName:
+    Description: Context7 Service Log Group Name
+    Value: !Ref Context7ServiceLogGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-Context7ServiceLogGroupName
