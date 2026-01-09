@@ -1,0 +1,436 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  Example SAM template following Ameritas CloudFormation standards.
+  This template demonstrates a complete file processing workflow.
+  Managed by: AI COE Team
+
+Globals:
+  Function:
+    Tracing: Active
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    LoggingConfig:
+      LogFormat: JSON
+
+Parameters:
+  # === Account & Environment ===
+  AWSAccountName:
+    Type: String
+    Description: AWS Account Name for resource naming
+
+  EnvironmentName:
+    Type: String
+    Description: Environment name (development, test, model, production)
+    AllowedValues:
+      - development
+      - test
+      - model
+      - production
+
+  # === Networking ===
+  LambdaSubnet1ID:
+    Type: String
+    Description: Subnet ID for Lambda function
+
+  LambdaSubnet2ID:
+    Type: String
+    Description: Subnet ID for Lambda function
+
+  LambdaSecurityGroupID1:
+    Type: String
+    Description: Security Group ID for Lambda functions
+
+  LambdaSecurityGroupID2:
+    Type: String
+    Description: Security Group ID for Lambda functions
+
+  # === IAM ===
+  LambdaIAMRoleARN:
+    Type: String
+    Description: IAM Role ARN for Lambda functions
+
+  EventBridgeIAMRoleARN:
+    Type: String
+    Description: IAM Role ARN for EventBridge rules
+
+  FileProcessingStepFunctionIAMRole:
+    Type: String
+    Description: IAM role ARN for Step Functions
+
+  # === Storage ===
+  EFSBasePath:
+    Type: String
+    Description: Base path in EFS to use for this project
+
+  MyEfsAccessPointArn:
+    Type: String
+    Description: ARN of the EFS Access Point
+
+  InputS3BucketName:
+    Type: String
+    Description: S3 bucket for input files
+
+  # === Notifications ===
+  NotificationEmail:
+    Type: String
+    Description: Email address for notifications
+    Default: team@ameritas.com
+
+Resources:
+  # ============================================
+  # SQS Queues
+  # ============================================
+  InputQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWSAccountName}-${AWS::StackName}-input-queue.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 360
+    Metadata:
+      SamResourceId: InputQueue
+
+  InputDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWSAccountName}-${AWS::StackName}-input-dlq
+    Metadata:
+      SamResourceId: InputDeadLetterQueue
+
+  EventBridgeDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWSAccountName}-${AWS::StackName}-eb-dlq
+    Metadata:
+      SamResourceId: EventBridgeDeadLetterQueue
+
+  # ============================================
+  # EventBridge Rules
+  # ============================================
+  S3UploadEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${AWSAccountName}-${AWS::StackName}-s3-upload-rule
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref InputS3BucketName
+          object:
+            key:
+              - prefix: raw/inbound/
+      Targets:
+        - Arn: !GetAtt InputQueue.Arn
+          Id: InputQueueTarget
+          RoleArn: !Ref EventBridgeIAMRoleARN
+          DeadLetterConfig:
+            Arn: !GetAtt EventBridgeDeadLetterQueue.Arn
+          SqsParameters:
+            MessageGroupId: !Sub ${AWSAccountName}-${AWS::StackName}-msg-id
+    Metadata:
+      SamResourceId: S3UploadEventRule
+
+  # ============================================
+  # Lambda Functions
+  # ============================================
+  FileIngestionLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWSAccountName}-${AWS::StackName}-file-ingestion
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      CodeUri: s3://deployment-bucket/file-ingestion-code-hash
+      Role: !Ref LambdaIAMRoleARN
+      MemorySize: 1024
+      Timeout: 300
+      EphemeralStorage:
+        Size: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupID1
+          - !Ref LambdaSecurityGroupID2
+        SubnetIds:
+          - !Ref LambdaSubnet1ID
+          - !Ref LambdaSubnet2ID
+      Environment:
+        Variables:
+          AWS_ACCOUNT_NAME: !Ref AWSAccountName
+          AWS_ENV_NAME: !Ref EnvironmentName
+          EFS_BASE_PATH: !Ref EFSBasePath
+          S3_BUCKET: !Ref InputS3BucketName
+          WORKFLOW_SM_ARN: !Ref FileProcessingStateMachine
+      Events:
+        SQSTrigger:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt InputQueue.Arn
+            BatchSize: 1
+      FileSystemConfigs:
+        - Arn: !Ref MyEfsAccessPointArn
+          LocalMountPath: /mnt/efs
+    Metadata:
+      SamResourceId: FileIngestionLambda
+
+  FileProcessingLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWSAccountName}-${AWS::StackName}-file-processing
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      CodeUri: s3://deployment-bucket/file-processing-code-hash
+      Role: !Ref LambdaIAMRoleARN
+      MemorySize: 2048
+      Timeout: 900
+      EphemeralStorage:
+        Size: 2048
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupID1
+          - !Ref LambdaSecurityGroupID2
+        SubnetIds:
+          - !Ref LambdaSubnet1ID
+          - !Ref LambdaSubnet2ID
+      Environment:
+        Variables:
+          AWS_ACCOUNT_NAME: !Ref AWSAccountName
+          AWS_ENV_NAME: !Ref EnvironmentName
+          EFS_BASE_PATH: !Ref EFSBasePath
+          S3_BUCKET: !Ref InputS3BucketName
+      FileSystemConfigs:
+        - Arn: !Ref MyEfsAccessPointArn
+          LocalMountPath: /mnt/efs
+    Metadata:
+      SamResourceId: FileProcessingLambda
+
+  ReportGenerationLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWSAccountName}-${AWS::StackName}-report-generation
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      CodeUri: s3://deployment-bucket/report-generation-code-hash
+      Role: !Ref LambdaIAMRoleARN
+      MemorySize: 1024
+      Timeout: 300
+      EphemeralStorage:
+        Size: 1024
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupID1
+          - !Ref LambdaSecurityGroupID2
+        SubnetIds:
+          - !Ref LambdaSubnet1ID
+          - !Ref LambdaSubnet2ID
+      Environment:
+        Variables:
+          AWS_ACCOUNT_NAME: !Ref AWSAccountName
+          AWS_ENV_NAME: !Ref EnvironmentName
+          EFS_BASE_PATH: !Ref EFSBasePath
+          S3_BUCKET: !Ref InputS3BucketName
+      FileSystemConfigs:
+        - Arn: !Ref MyEfsAccessPointArn
+          LocalMountPath: /mnt/efs
+    Metadata:
+      SamResourceId: ReportGenerationLambda
+
+  ErrorNotificationLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWSAccountName}-${AWS::StackName}-error-notification
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      CodeUri: s3://deployment-bucket/error-notification-code-hash
+      Role: !Ref LambdaIAMRoleARN
+      MemorySize: 512
+      Timeout: 60
+      EphemeralStorage:
+        Size: 512
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupID1
+          - !Ref LambdaSecurityGroupID2
+        SubnetIds:
+          - !Ref LambdaSubnet1ID
+          - !Ref LambdaSubnet2ID
+      Environment:
+        Variables:
+          AWS_ACCOUNT_NAME: !Ref AWSAccountName
+          AWS_ENV_NAME: !Ref EnvironmentName
+          S3_BUCKET: !Ref InputS3BucketName
+          FAILED_PREFIX: failed/
+    Metadata:
+      SamResourceId: ErrorNotificationLambda
+
+  # ============================================
+  # SNS Topics
+  # ============================================
+  SuccessNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWSAccountName}-${AWS::StackName}-success-topic
+      Subscription:
+        - Endpoint: !Ref NotificationEmail
+          Protocol: email
+    Metadata:
+      SamResourceId: SuccessNotificationTopic
+
+  ErrorNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWSAccountName}-${AWS::StackName}-error-topic
+      Subscription:
+        - Endpoint: !Ref NotificationEmail
+          Protocol: email
+    Metadata:
+      SamResourceId: ErrorNotificationTopic
+
+  # ============================================
+  # Step Function State Machine
+  # ============================================
+  FileProcessingStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub ${AWSAccountName}-${AWS::StackName}-file-processing-sm
+      Tracing:
+        Enabled: true
+      Definition:
+        StartAt: ProcessFile
+        TimeoutSeconds: 14400
+        States:
+          ProcessFile:
+            Type: Task
+            Resource: !GetAtt FileProcessingLambda.Arn
+            InputPath: $
+            ResultPath: $.processing_output
+            Next: GenerateReport
+            Retry:
+              - ErrorEquals:
+                  - States.ALL
+                IntervalSeconds: 2
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                ResultPath: $.error_info
+                Next: NotifyError
+
+          GenerateReport:
+            Type: Task
+            Resource: !GetAtt ReportGenerationLambda.Arn
+            Parameters:
+              bucket.$: $.bucket
+              file_key.$: $.processing_output.output_key
+              metadata.$: $.processing_output.metadata
+            ResultPath: $.report_output
+            Next: NotifySuccess
+            Retry:
+              - ErrorEquals:
+                  - States.ALL
+                IntervalSeconds: 2
+                MaxAttempts: 3
+                BackoffRate: 2
+                JitterStrategy: FULL
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                ResultPath: $.error_info
+                Next: NotifyError
+
+          NotifySuccess:
+            Type: Task
+            Resource: arn:aws:states:::sns:publish
+            Parameters:
+              TopicArn: !Ref SuccessNotificationTopic
+              Subject: File Processing Completed Successfully
+              Message.$: States.Format('File processing completed. Report: {}', $.report_output.report_path)
+            Next: WorkflowSuccess
+
+          WorkflowSuccess:
+            Type: Succeed
+
+          NotifyError:
+            Type: Task
+            Resource: !GetAtt ErrorNotificationLambda.Arn
+            Parameters:
+              bucket.$: $.bucket
+              error_info.$: $.error_info
+              execution_arn.$: $$.Execution.Id
+            ResultPath: $.notification_output
+            Next: SendErrorSNS
+
+          SendErrorSNS:
+            Type: Task
+            Resource: arn:aws:states:::sns:publish
+            Parameters:
+              TopicArn: !Ref ErrorNotificationTopic
+              Subject: File Processing Error
+              Message.$: States.Format('Error in file processing. Error: {}', $.error_info)
+            Next: WorkflowFailure
+
+          WorkflowFailure:
+            Type: Fail
+            Error: FileProcessingFailed
+            Cause: File processing workflow execution failed
+      Role: !Ref FileProcessingStepFunctionIAMRole
+    Metadata:
+      SamResourceId: FileProcessingStateMachine
+
+  # ============================================
+  # CloudWatch Alarms
+  # ============================================
+  WorkflowFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWSAccountName}-${AWS::StackName}-workflow-failure-alarm
+      AlarmDescription: Monitors File Processing State Machine for execution failures
+      MetricName: ExecutionsFailed
+      Namespace: AWS/States
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref FileProcessingStateMachine
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref ErrorNotificationTopic
+    Metadata:
+      SamResourceId: WorkflowFailureAlarm
+
+Outputs:
+  FileProcessingStateMachineArn:
+    Description: ARN of the File Processing State Machine
+    Value: !Ref FileProcessingStateMachine
+
+  InputQueueUrl:
+    Description: URL of the input SQS queue
+    Value: !Ref InputQueue
+
+  InputQueueArn:
+    Description: ARN of the input SQS queue
+    Value: !GetAtt InputQueue.Arn
+
+  SuccessTopicArn:
+    Description: ARN of the success notification topic
+    Value: !Ref SuccessNotificationTopic
+
+  ErrorTopicArn:
+    Description: ARN of the error notification topic
+    Value: !Ref ErrorNotificationTopic
+
+  FileIngestionFunctionArn:
+    Description: ARN of the file ingestion Lambda function
+    Value: !GetAtt FileIngestionLambda.Arn
+
+  FileProcessingFunctionArn:
+    Description: ARN of the file processing Lambda function
+    Value: !GetAtt FileProcessingLambda.Arn
